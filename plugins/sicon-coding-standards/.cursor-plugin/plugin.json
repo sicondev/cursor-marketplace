@@ -1,0 +1,13 @@
+{
+  "name": "sicon-coding-standards",
+  "displayName": "Sicon Coding Standards",
+  "version": "0.1.0",
+  "description": "Sicon Coding Standards for various languages.",
+  "author": {
+    "name": "Sicon",
+    "email": "developers@sicon.co.uk"
+  },
+  "license": "MIT",
+  "keywords": ["cursor", "plugin", "rules", "skills"],
+  "logo": "assets/logo.svg"
+}

@@ -13,6 +13,11 @@
       "name": "fact-find",
       "source": "./plugins/fact-find",
       "description": "exploratory enquiry"
+    },
+    {
+      "name": "sicon-coding-standards",
+      "source": "./plugins/sicon-coding-standards",
+      "description": "Sicon Coding Standards for various languages"
     }
   ]
 }
