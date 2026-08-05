@@ -1,0 +1,18 @@
+{
+  "name": "Sicon Plugins",
+  "owner": {
+    "name": "Sicon",
+    "email": "developers@sicon.co.uk"
+  },
+  "metadata": {
+    "description": "Sicon Marketplace Cursor Plugins",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "fact-find",
+      "source": "./plugins/fact-find",
+      "description": "exploratory enquiry"
+    }
+  ]
+}
