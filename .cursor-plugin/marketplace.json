@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.8"
+                     "version":  "0.1.10"
                  },
     "plugins":  [
                     {
@@ -28,6 +28,11 @@
                         "name":  "sicon-good-prompt",
                         "source":  "./plugins/sicon-good-prompt",
                         "description":  "Coach implementation briefs via /good-prompt — gap-fill until handoff to Plan"
+                    },
+                    {
+                        "name":  "sicon-personal-todo",
+                        "source":  "./plugins/sicon-personal-todo",
+                        "description":  "Personal backlog in local Cursor memory via /todo-* slash commands"
                     }
                 ]
 }

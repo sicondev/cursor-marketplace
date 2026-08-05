@@ -1,0 +1,23 @@
+---
+description: Personal todo backlog — list, explain, add/refine, resume, init from ~/.cursor/memory
+alwaysApply: false
+todoTriggersVersion: 4
+---
+
+# Personal todos (loader)
+
+**User-only.** Do not load `memory/todos.md` unless triggers below match.
+
+Route by **slash command** (works for user-pack and Team Marketplace plugin installs). Prefer `/todo-*` over filesystem `@` paths — plugin commands live under the plugin tree, not necessarily `~/.cursor/commands/`.
+
+| Intent | Route to |
+|--------|----------|
+| **Router** | `/todo` (`todo.md`) — subcommand `list`, `explain`, `add`, `resume`, `howto`, `init` |
+| **How to** | `/todo-howto` — `/todo howto`, *how do personal todos work* |
+| **Init / seed** | `/todo-init` — `/todo init`, *seed personal todo memory*, *initialize personal todos*, *set up personal todo backlog* |
+| **List** | `/todo-list` — *personal todo*, *show my todo list* |
+| **Explain** | `/todo-explain` — *explain todo*, *what does TODO-NNN mean*, title hint |
+| **Add / refine** | `/todo-add` — *add a todo*, *capture todo*, *refine personal todo*, *update TODO-NNN* |
+| **Resume** | `/todo-resume` — *resume todo*, *resume that one*, `TODO-NNN`, title hint |
+
+Full flow: `%USERPROFILE%\.cursor\memory\memory.md` § Session resume (after `/todo-init` — see howto).

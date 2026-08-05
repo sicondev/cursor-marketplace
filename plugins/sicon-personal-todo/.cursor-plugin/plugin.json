@@ -1,0 +1,18 @@
+{
+    "name":  "sicon-personal-todo",
+    "displayName":  "Sicon Personal Todo",
+    "version":  "0.1.4",
+    "description":  "Personal backlog in local Cursor memory via /todo-* slash commands",
+    "author":  {
+                   "email":  "rudolf.bothma@sicon.co.uk",
+                   "name":  "Rudolf Bothma"
+               },
+    "license":  "MIT",
+    "keywords":  [
+                     "cursor",
+                     "plugin",
+                     "sicon",
+                     "personal-todo"
+                 ],
+    "logo":  "assets/logo.svg"
+}
