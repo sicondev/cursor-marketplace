@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.7"
+                     "version":  "0.1.8"
                  },
     "plugins":  [
                     {
@@ -23,6 +23,11 @@
                         "name":  "sicon-devils-advocate",
                         "source":  "./plugins/sicon-devils-advocate",
                         "description":  "Find weaknesses in a claim via sustained opposition — not for agreed resolutions; optional fact-find handoff"
+                    },
+                    {
+                        "name":  "sicon-good-prompt",
+                        "source":  "./plugins/sicon-good-prompt",
+                        "description":  "Coach implementation briefs via /good-prompt — gap-fill until handoff to Plan"
                     }
                 ]
 }
