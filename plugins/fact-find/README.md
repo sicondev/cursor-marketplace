@@ -4,22 +4,6 @@
 
 Fact-find is a small, user-scoped contrib for neutral, read-only exploration. It has no pack prerequisites and requires no command arguments.
 
-## Install
-
-From an `ai-devtools` checkout:
-
-```powershell
-.\bootstrap\Install-UserPack.ps1 -Pack fact-find
-```
-
-Reload Cursor after installation. No product-repository files are changed.
-
-Uninstall:
-
-```powershell
-.\bootstrap\Uninstall-UserPack.ps1 -Pack fact-find
-```
-
 ## Usage
 
 Use a new chat in Ask mode when possible:
