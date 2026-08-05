@@ -1,13 +1,13 @@
 {
   "name": "sicon-coding-standards",
   "displayName": "Sicon Coding Standards",
-  "version": "0.1.1",
-  "description": "Sicon Coding Standards for various languages.",
+  "version": "0.1.2",
+  "description": "Sicon C# coding standards for readable, maintainable changes.",
   "author": {
     "name": "Sicon",
     "email": "developers@sicon.co.uk"
   },
   "license": "MIT",
-  "keywords": ["cursor", "plugin", "rules", "skills"],
+  "keywords": ["cursor", "plugin", "skills", "rules", "csharp", "sicon"],
   "logo": "assets/logo.svg"
 }
