@@ -1,9 +1,37 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24">
-  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
-    <circle cx="10" cy="10" r="5.5"/>
-    <path d="M14 14l6 6"/>
-    <path d="M10 7.5v5"/>
-    <path d="M7.5 10h5"/>
-    <circle cx="10" cy="10" r=".4"/>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Fact Find Logo</title>
+  <desc id="desc">Magnifying glass representing neutral investigation.</desc>
+
+  <!-- Background -->
+  <rect width="128" height="128" rx="20" fill="#0F172A"/>
+
+  <!-- Tile -->
+  <rect x="20" y="20" width="88" height="88" rx="14" fill="#2563EB"/>
+
+  <!-- Magnifying glass -->
+  <circle
+      cx="56"
+      cy="56"
+      r="20"
+      fill="none"
+      stroke="#F8FAFC"
+      stroke-width="6"/>
+
+  <path
+      d="M70 70l18 18"
+      fill="none"
+      stroke="#F8FAFC"
+      stroke-width="6"
+      stroke-linecap="round"/>
+
+  <!-- Crosshair -->
+  <path
+      d="M56 46v20M46 56h20"
+      fill="none"
+      stroke="#F8FAFC"
+      stroke-width="4"
+      stroke-linecap="round"/>
+
+  <circle cx="56" cy="56" r="2.5" fill="#F8FAFC"/>
+
 </svg>
