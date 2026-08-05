@@ -1,8 +1,8 @@
-<!-- contrib-managed: fact-find@0.1.0 — source: ai-devtools/contrib/fact-find/ — prefer PR there; local edits may be overwritten on sync -->
+# Sicon Fact Find
 
-# Fact-find — exploratory enquiry
+Neutral, read-only exploratory enquiry via /fact-find, with an optional topic and optional Devil's Advocate references
 
-Fact-find is a small, user-scoped contrib for neutral, read-only exploration. It has no pack prerequisites and requires no command arguments.
+Install from the Sicon Team Marketplace, then use `/fact-find` in chat.
 
 ## Usage
 
@@ -32,4 +32,4 @@ Fact-find can inspect a response produced by the `devils-advocate` contrib when 
 
 ## Reliability
 
-The supported install contract is the `/fact-find` slash command with either no arguments or an optional topic. Ask-mode enforcement, neutrality, response depth, and optional DA-reference resolution remain agent-dependent.
+The supported usage contract is the `/fact-find` slash command with either no arguments or an optional topic. Ask-mode enforcement, neutrality, response depth, and optional DA-reference resolution remain agent-dependent.

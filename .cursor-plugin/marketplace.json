@@ -1,18 +1,18 @@
 {
-  "name": "Sicon Plugins",
+  "name": "sicon-plugins",
   "owner": {
     "name": "Sicon",
     "email": "developers@sicon.co.uk"
   },
   "metadata": {
     "description": "Sicon Marketplace Cursor Plugins",
-    "version": "0.1.0"
+    "version": "0.1.2"
   },
   "plugins": [
     {
-      "name": "fact-find",
-      "source": "./plugins/fact-find",
-      "description": "exploratory enquiry"
+      "name": "sicon-fact-find",
+      "source": "./plugins/sicon-fact-find",
+      "description": "Neutral, read-only exploratory enquiry via /fact-find, with an optional topic and optional Devil's Advocate references"
     },
     {
       "name": "sicon-coding-standards",
