@@ -1,8 +1,8 @@
 {
-    "name":  "sicon-fact-find",
-    "displayName":  "Sicon Fact Find",
-    "version":  "0.1.3",
-    "description":  "Neutral, read-only exploratory enquiry via /fact-find, with an optional topic",
+    "name":  "sicon-devils-advocate",
+    "displayName":  "Sicon Devils Advocate",
+    "version":  "0.1.7",
+    "description":  "Find weaknesses in a claim via sustained opposition — not for agreed resolutions; optional fact-find handoff",
     "author":  {
                    "email":  "rudolf.bothma@sicon.co.uk",
                    "name":  "Rudolf Bothma"
@@ -12,7 +12,7 @@
                      "cursor",
                      "plugin",
                      "sicon",
-                     "fact-find"
+                     "devils-advocate"
                  ],
     "logo":  "assets/logo.svg"
 }

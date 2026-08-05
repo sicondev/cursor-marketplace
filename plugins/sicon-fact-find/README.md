@@ -1,6 +1,6 @@
 # Sicon Fact Find
 
-Neutral, read-only exploratory enquiry via /fact-find, with an optional topic and optional Devil's Advocate references
+Neutral, read-only exploratory enquiry via /fact-find, with an optional topic
 
 Install from the Sicon Team Marketplace, then use `/fact-find` in chat.
 
@@ -19,6 +19,10 @@ Bare `/fact-find` acknowledges the enquiry mode and asks what to explore. Text f
 
 Fact-find keeps the thread exploratory rather than turning it into implementation or delivery planning. It separates verified evidence from inference, stays neutral, and labels subjective judgment when the question invites it.
 
+## Reliability
+
+The supported usage contract is the `/fact-find` slash command with either no arguments or an optional topic. Ask-mode enforcement, neutrality, response depth, and optional DA-reference resolution remain agent-dependent.
+
 ## Optional Devil's Advocate references
 
 Fact-find can inspect a response produced by the `devils-advocate` contrib when the user supplies a reference:
@@ -29,7 +33,3 @@ Fact-find can inspect a response produced by the `devils-advocate` contrib when 
 ```
 
 `devils-advocate` is optional. Fact-find works normally without it and does not declare it as a prerequisite.
-
-## Reliability
-
-The supported usage contract is the `/fact-find` slash command with either no arguments or an optional topic. Ask-mode enforcement, neutrality, response depth, and optional DA-reference resolution remain agent-dependent.

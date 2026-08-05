@@ -1,23 +1,28 @@
 {
-  "name": "sicon-plugins",
-  "owner": {
-    "name": "Sicon",
-    "email": "developers@sicon.co.uk"
-  },
-  "metadata": {
-    "description": "Sicon Marketplace Cursor Plugins",
-    "version": "0.1.4"
-  },
-  "plugins": [
-    {
-      "name": "sicon-fact-find",
-      "source": "./plugins/sicon-fact-find",
-      "description": "Neutral, read-only exploratory enquiry via /fact-find, with an optional topic and optional Devil's Advocate references"
-    },
-    {
-      "name": "sicon-coding-standards",
-      "source": "./plugins/sicon-coding-standards",
-      "description": "Sicon C# coding standards for readable, maintainable changes"
-    }
-  ]
+    "name":  "sicon-plugins",
+    "owner":  {
+                  "name":  "Sicon",
+                  "email":  "developers@sicon.co.uk"
+              },
+    "metadata":  {
+                     "description":  "Sicon Marketplace Cursor Plugins",
+                     "version":  "0.1.7"
+                 },
+    "plugins":  [
+                    {
+                        "name":  "sicon-coding-standards",
+                        "source":  "./plugins/sicon-coding-standards",
+                        "description":  "Sicon C# coding standards for readable, maintainable changes"
+                    },
+                    {
+                        "name":  "sicon-fact-find",
+                        "source":  "./plugins/sicon-fact-find",
+                        "description":  "Neutral, read-only exploratory enquiry via /fact-find, with an optional topic"
+                    },
+                    {
+                        "name":  "sicon-devils-advocate",
+                        "source":  "./plugins/sicon-devils-advocate",
+                        "description":  "Find weaknesses in a claim via sustained opposition — not for agreed resolutions; optional fact-find handoff"
+                    }
+                ]
 }

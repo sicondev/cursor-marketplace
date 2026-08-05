@@ -1,6 +1,6 @@
 ---
 name: fact-find
-description: Neutral, read-only exploratory enquiry via /fact-find, with an optional topic and optional Devil's Advocate references
+description: Neutral, read-only exploratory enquiry via /fact-find, with an optional topic
 ---
 
 # fact-find — exploratory enquiry (read-only)
@@ -15,32 +15,7 @@ User invokes `/fact-find` or natural-language *fact finding*, *fact-find*, *expl
 
 Optional topic after the command (e.g. `/fact-find how CodeAnt per-repo config works`) — treat remainder as the enquiry; do not ask for a topic if one is present.
 
-Bare `/fact-find` with no topic → one short mode acknowledgement (mention DA refs are supported), then ask what to explore (one question only).
-
-## DA references (optional producer: `/devils-advocate`)
-
-Devil’s-advocate does **not** require fact-find. When the user pastes a DA ref, treat it as **source material only** — keep this command’s response shapes, neutrality, and objective/subjective rules. **Do not** adopt opposition stance, relentless cross-examination, or DA tone.
-
-### Grammar
-
-1. `/fact-find DA response <n>: <question>` — latest session (`%USERPROFILE%\.cursor\da-sessions\LATEST`, else newest sidecar mtime, else first exact hit in the current Cursor project's 20 newest transcripts).
-2. `/fact-find DA session <session-id> response <n>: <question>` — pin session when ambiguous/older.
-3. Recovery: `/fact-find` + pasted Response block + `Question: …` when resolve fails.
-
-Exact header DA emits (for transcript grep) — first line of the assistant message:
-
-```text
-DA response N
-```
-
-### Smart resolve order
-
-1. Before resolving a supplied `<session-id>`, require `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$` and reject `.` or `..`. Build `<session-id>.md`, resolve its canonical full path, and require it to remain beneath the canonical `%USERPROFILE%\.cursor\da-sessions` directory (case-insensitive on Windows). If validation or containment fails, do not read the path; use the clarifying/recovery path.
-2. If the validated `%USERPROFILE%\.cursor\da-sessions\<id>.md` exists → read `## Response <n>` only (plus `## Claim` only if the question needs it). **Prefer this.**
-3. Else list the current Cursor project's transcript files newest-first and inspect at most 20 for an assistant message whose body starts with `DA response <n>` (exact line). Stop at the first hit and load that **single** assistant message body (you may strip the header line). Never search other project directories, ingest a full transcript, or load unmarked turns.
-4. Else one clarifying question (session id or paste) — then recovery path.
-
-Label DA excerpt as prior-session source (`verified` = found in sidecar/transcript). Do **not** treat DA assertions as codebase truth without checking the repos.
+Bare `/fact-find` with no topic → one short mode acknowledgement, then ask what to explore (one question only).
 
 ## Session contract (whole thread unless user explicitly ends it)
 
@@ -187,7 +162,7 @@ Do not switch modes in this thread. Do not plan or implement here.
 
 ### Bare `/fact-find`
 
-One line: read-only enquiry, neutral exploration; DA refs supported (`DA response N:` / `DA session <id> response N:`). One question: what to explore?
+One line: read-only enquiry, neutral exploration. One question: what to explore?
 
 ---
 
@@ -237,3 +212,28 @@ Recovery if store missing:
 [paste Response 2 block]
 Question: …
 ```
+
+## DA references (optional producer: `/devils-advocate`)
+
+Devil’s-advocate does **not** require fact-find. When the user pastes a DA ref, treat it as **source material only** — keep this command’s response shapes, neutrality, and objective/subjective rules. **Do not** adopt opposition stance, relentless cross-examination, or DA tone.
+
+### Grammar
+
+1. `/fact-find DA response <n>: <question>` — latest session (`%USERPROFILE%\.cursor\da-sessions\LATEST`, else newest sidecar mtime, else first exact hit in the current Cursor project's 20 newest transcripts).
+2. `/fact-find DA session <session-id> response <n>: <question>` — pin session when ambiguous/older.
+3. Recovery: `/fact-find` + pasted Response block + `Question: …` when resolve fails.
+
+Exact header DA emits (for transcript grep) — first line of the assistant message:
+
+```text
+DA response N
+```
+
+### Smart resolve order
+
+1. Before resolving a supplied `<session-id>`, require `^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$` and reject `.` or `..`. Build `<session-id>.md`, resolve its canonical full path, and require it to remain beneath the canonical `%USERPROFILE%\.cursor\da-sessions` directory (case-insensitive on Windows). If validation or containment fails, do not read the path; use the clarifying/recovery path.
+2. If the validated `%USERPROFILE%\.cursor\da-sessions\<id>.md` exists → read `## Response <n>` only (plus `## Claim` only if the question needs it). **Prefer this.**
+3. Else list the current Cursor project's transcript files newest-first and inspect at most 20 for an assistant message whose body starts with `DA response <n>` (exact line). Stop at the first hit and load that **single** assistant message body (you may strip the header line). Never search other project directories, ingest a full transcript, or load unmarked turns.
+4. Else one clarifying question (session id or paste) — then recovery path.
+
+Label DA excerpt as prior-session source (`verified` = found in sidecar/transcript). Do **not** treat DA assertions as codebase truth without checking the repos.

@@ -1,40 +1,33 @@
-# Cursor plugin template
+# Sicon Cursor Team Marketplace
 
-Build and publish Cursor Marketplace plugins from a single repo.
+This repo is the **Sicon Team Marketplace mirror** for Cursor plugins: `plugins/` plus `.cursor-plugin/marketplace.json`. Upload or sync this tree, then import/refresh in Cursor Dashboard → Plugins. CI marketplace publish is deferred.
 
-Two starter plugins are included:
+This checkout is **multi-plugin** (several plugins in one repo). That is the supported layout.
 
-- **starter-simple**: rules and skills only
-- **starter-advanced**: rules, skills, agents, commands, hooks, MCP, and scripts
+## Consumers
 
-## Getting started
+In Cursor, install and enable plugins from the Sicon Team Marketplace (for example `sicon-fact-find`, `sicon-coding-standards`, `sicon-devils-advocate`). Use each plugin’s slash commands or skills after enable.
 
-[Use this template](https://github.com/cursor/plugin-template/generate) to create a new repository, then customize:
+## Producers — start in ai-devtools
 
-1. `.cursor-plugin/marketplace.json`: set marketplace `name`, `owner`, and `metadata`.
-2. `plugins/*/.cursor-plugin/plugin.json`: set `name` (lowercase kebab-case), `displayName`, `author`, `description`, `keywords`, `license`, and `version`.
-3. Replace placeholder rules, skills, agents, commands, hooks, scripts, and logos.
+If you opened this repo to **change a tool**, author it in **ai-devtools** `contrib/<id>` (or the matching org pack). Do not invent a parallel copy only in this marketplace tree.
 
-To add more plugins, see `docs/add-a-plugin.md`.
+### Why
 
-## Single plugin vs multi-plugin
+- **Dogfood and hygiene** — ship what you actually use from the contrib lane.
+- **One source of truth** — avoid duplicating the same command/skill in two places that drift.
+- **Gate before catalog** — `pinch plugin publish` runs iterate checks, version confirm, export, and validate before the catalog entry lands.
 
-This template defaults to **multi-plugin** (multiple plugins in one repo).
+### Publish a contrib pack as a plugin
 
-For a **single plugin**, move your plugin folder contents to the repository root, keep one `.cursor-plugin/plugin.json`, and remove `.cursor-plugin/marketplace.json`.
+From an **ai-devtools** checkout, per tool:
 
-## Submission checklist
+```text
+pinch plugin publish <pack-id>
+```
 
-- Each plugin has a valid `.cursor-plugin/plugin.json`.
-- Plugin names are unique, lowercase, and kebab-case.
-- `.cursor-plugin/marketplace.json` entries map to real plugin folders.
-- All frontmatter metadata is present in rule, skill, agent, and command files.
-- Logos are committed and referenced with relative paths.
-- `node scripts/validate-template.mjs` passes.
-- Repository link is ready for submission to the Cursor team (Slack or `kniparko@anysphere.com`).
+That lane loads the plugin pincher doc, runs the iterate gate, confirms the next semver, then writes via `Export-ContribCursorPlugin.ps1` into `plugins/sicon-<id>/` here (security scan + `node scripts/validate-template.mjs`). Commit/push this marketplace repo and refresh the Team Marketplace in the Dashboard.
 
-Sicon Cursor Team Marketplace plugins.
+## Template leftovers
 
-Upload this folder's contents to the GitHub marketplace repo, then import/refresh in Cursor Dashboard â†’ Plugins.
-
-CI marketplace publish is deferred.
+`plugins/starter-simple` and `plugins/starter-advanced` are Cursor template samples, not Sicon product plugins.
