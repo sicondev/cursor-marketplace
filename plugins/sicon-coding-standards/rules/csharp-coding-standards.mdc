@@ -6,4 +6,4 @@ alwaysApply: false
 
 # Sicon C# coding standards
 
-When writing or reviewing C#, use the **csharp-coding-standards** skill (read its instructions and `content/csharp-coding-standards.md`).
+When writing or reviewing C#, use the **csharp-coding-standards** skill.

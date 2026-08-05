@@ -9,6 +9,6 @@ Use when editing or reviewing `.cs` files, or when the user asks about Sicon C# 
 
 ## Instructions
 
-1. Read `content/csharp-coding-standards.md` in this plugin (Version 1.3).
-2. Apply those naming conventions, coding practices, and Sage-specific conventions.
-3. Prefer that document over memory for edge cases; do not invent an alternate style guide.
+1. Read `../../content/csharp-coding-standards.md` (Version 1.4).
+2. Apply those naming, style, structure, practice, and Sage conventions.
+3. Prefer that document over memory; do not invent an alternate style guide.
