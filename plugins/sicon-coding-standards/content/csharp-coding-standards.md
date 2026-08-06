@@ -70,13 +70,5 @@ public FileStream GetFileStream(string path)
 - Magic numbers (except −1, 0, 1, 2): named constants. `const` for true constants; `readonly` for runtime-fixed values. Prefer a const class / private nested const class.
 - Comment only non-obvious assumptions, not obvious code.
 - Zero-based arrays and indexed collections.
+- Do not expose raw error messages to clients. Log them and return a safe or generic error message.
 
-## Sage-specific
-
-| Avoid | Use instead |
-|-------|-------------|
-| `DateTime.Now` | `CurrentSageContext.CurrentTime` or `Sage.Common.Clock.Now` |
-| `DateTime.Today` | `CurrentSageContext.CurrentDate` or `Sage.Common.Clock.Today` |
-| `Math.Round(…)` | `Sage.Common.Helper.NumberHelper.Round(…)` |
-
-(`CurrentSageContext` = `Sicon.Sage200.Architecture.DAL.Common.CurrentSageContext`)
