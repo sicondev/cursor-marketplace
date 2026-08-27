@@ -1,7 +1,8 @@
 ---
 name: todo-explain
-description: Personal backlog in local Cursor memory via /todo-* slash commands
+description: Unpack a backlog item without starting work
 ---
+
 # todo-explain — expand a backlog item (Ask only)
 
 Read-only. User-scoped memory — not org/repo tooling. **Do not implement.**

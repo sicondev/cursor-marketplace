@@ -1,7 +1,8 @@
 ---
 name: todo-init
-description: Personal backlog in local Cursor memory via /todo-* slash commands
+description: Seed local memory templates for the personal backlog (will not overwrite existing files)
 ---
+
 # todo-init — seed personal todo memory (first run)
 
 Mutating. User-scoped memory — not org/repo tooling. Seeds `%USERPROFILE%\.cursor\memory\` templates **only when missing** (never overwrites).

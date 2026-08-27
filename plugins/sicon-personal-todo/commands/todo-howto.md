@@ -1,7 +1,8 @@
 ---
 name: todo-howto
-description: Personal backlog in local Cursor memory via /todo-* slash commands
+description: How the personal backlog commands fit together
 ---
+
 # todo-howto — personal backlog usage guide
 
 Read-only. User-scoped memory — not org/repo tooling. **Do not read** `todos.md` or transcripts.
@@ -13,8 +14,6 @@ User invokes `/todo-howto`, `/todo howto`, or asks how personal todos / `todo-*`
 ## Do
 
 Reply with the guide below **verbatim in structure** (paths and commands must match). Do not improvise a different workflow.
-
----
 
 ## Personal todo — how to
 
@@ -71,7 +70,5 @@ First run only: init seeds memory templates when files are missing.
 
 - **Active:** non-blocked by id, then blocked by id
 - **Done / Parked:** one line per item, by id
-
----
 
 End with: *"List now? `/todo-list` — explain an item? `/todo-explain TODO-NNN`."*

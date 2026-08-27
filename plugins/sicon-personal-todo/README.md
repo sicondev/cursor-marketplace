@@ -1,6 +1,6 @@
 # Sicon Personal Todo
 
-Personal backlog in local Cursor memory via `/todo-*` slash commands.
+Keep a personal backlog in Cursor memory — list, explain, add, or pick up work.
 
 Install from the Sicon Team Marketplace, then reload Cursor.
 

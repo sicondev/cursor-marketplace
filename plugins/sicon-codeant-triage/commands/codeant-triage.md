@@ -1,7 +1,8 @@
 ---
 name: codeant-triage
-description: CodeAnt Triage: /codeant-triage PR comment loop (Fix / Won't fix / Skip + UAP Disposition); /codeant-triage-uapscan and /codeant-triage-uapscan-deepscan UAP scans (no finalize); profile-only; recom...
+description: Work through CodeAnt findings on an Azure DevOps PR — fix, skip, or save as a personal anti-pattern
 ---
+
 # CodeAnt Triage
 
 **Post-PR feedback loop only** — use after **CodeAnt (ADO)** comments on an open pull request.
@@ -423,18 +424,17 @@ After a successful UAP append only:
 4. Write or update **only** `%USERPROFILE%\.cursor\rules\codeant-uap-<n>.mdc` (same `<n>` as the UAP id). **Never** under the product repo. **Never** add these files to pack `managed`.
 
 ```yaml
----
+# .mdc body example — do not wrap in YAML --- (Cursor command catalog treats extra --- as a second command)
 description: CodeAnt Triage UAP-N — <short pattern>
 globs:
   - <chosen>
 alwaysApply: false
 codeantRepo: <remoteId|*>
 codeantRepoDisplay: <displayName|->
----
-# UAP-N — <pattern>
 
-<summary + fix direction mirrored from the UAP row>
-<!-- optional one-liner when Disposition populated: Disposition: … -->
+# UAP-N — <pattern>
+# <summary + fix direction mirrored from the UAP row>
+# optional: Disposition: …
 ```
 
 - Embed `UAP-N` in filename and description for lookup.

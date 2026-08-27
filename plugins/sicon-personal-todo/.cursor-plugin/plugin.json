@@ -1,8 +1,8 @@
 {
     "name":  "sicon-personal-todo",
     "displayName":  "Sicon Personal Todo",
-    "version":  "0.1.4",
-    "description":  "Personal backlog in local Cursor memory via /todo-* slash commands",
+    "version":  "0.1.5",
+    "description":  "Keep a personal backlog in Cursor memory — list, explain, add, or pick up work",
     "author":  {
                    "email":  "rudolf.bothma@sicon.co.uk",
                    "name":  "Rudolf Bothma"
