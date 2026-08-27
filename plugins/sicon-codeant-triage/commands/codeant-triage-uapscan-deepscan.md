@@ -1,7 +1,8 @@
 ---
 name: codeant-triage-uapscan-deepscan
-description: CodeAnt Triage: /codeant-triage PR comment loop (Fix / Won't fix / Skip + UAP Disposition); /codeant-triage-uapscan and /codeant-triage-uapscan-deepscan UAP scans (no finalize); profile-only; recom...
+description: Scan the workspace or a folder for personal anti-patterns; narrow the path if the scan is large
 ---
+
 # CodeAnt Triage — UAP deep scan (workspace)
 
 **Slash only** — use when the user invokes `/codeant-triage-uapscan-deepscan` or `/codeant-triage-uapscan-deepscan <paths>`. **No** natural-language auto-engage. **No** finalize / commit / ADO reply from this command.

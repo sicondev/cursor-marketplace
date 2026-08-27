@@ -1,7 +1,8 @@
 ---
 name: todo-resume
-description: Personal backlog in local Cursor memory via /todo-* slash commands
+description: Briefing for one backlog item — the decision plus the next step
 ---
+
 # todo-resume — open a todo as session context
 
 Read-only briefing unless user switches to Agent and asks to implement.

@@ -1,7 +1,8 @@
 ---
 name: todo-list
-description: Personal backlog in local Cursor memory via /todo-* slash commands
+description: Show the personal backlog at a glance
 ---
+
 # todo-list — list personal backlog
 
 Read-only. User-scoped memory — not org/repo tooling.

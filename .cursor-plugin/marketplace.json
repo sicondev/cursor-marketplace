@@ -6,18 +6,13 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.12"
+                     "version":  "0.1.16"
                  },
     "plugins":  [
                     {
                         "name":  "sicon-coding-standards",
                         "source":  "./plugins/sicon-coding-standards",
                         "description":  "Sicon C# coding standards for readable, maintainable changes"
-                    },
-                    {
-                        "name":  "sicon-fact-find",
-                        "source":  "./plugins/sicon-fact-find",
-                        "description":  "Neutral, read-only exploratory enquiry via /fact-find, with an optional topic"
                     },
                     {
                         "name":  "sicon-devils-advocate",
@@ -30,11 +25,6 @@
                         "description":  "Coach implementation briefs via /good-prompt — gap-fill until handoff to Plan"
                     },
                     {
-                        "name":  "sicon-personal-todo",
-                        "source":  "./plugins/sicon-personal-todo",
-                        "description":  "Personal backlog in local Cursor memory via /todo-* slash commands"
-                    },
-                    {
                         "name":  "sicon-ado-core",
                         "source":  "./plugins/sicon-ado-core",
                         "description":  "Shared Azure DevOps Git, pull-request, and work-item library for other Sicon plugins (no slash command)"
@@ -42,7 +32,17 @@
                     {
                         "name":  "sicon-codeant-triage",
                         "source":  "./plugins/sicon-codeant-triage",
-                        "description":  "CodeAnt Triage: /codeant-triage PR comment loop (Fix / Won\u0027t fix / Skip + UAP Disposition); /codeant-triage-uapscan and /codeant-triage-uapscan-deepscan UAP scans (no finalize); profile-only; recommends personal-todo"
+                        "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
+                    },
+                    {
+                        "name":  "sicon-personal-todo",
+                        "source":  "./plugins/sicon-personal-todo",
+                        "description":  "Keep a personal backlog in Cursor memory — list, explain, add, or pick up work"
+                    },
+                    {
+                        "name":  "sicon-fact-find",
+                        "source":  "./plugins/sicon-fact-find",
+                        "description":  "Neutral, read-only exploratory enquiry via /fact-find, with an optional topic"
                     }
                 ]
 }

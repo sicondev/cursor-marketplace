@@ -1,8 +1,8 @@
 {
     "name":  "sicon-codeant-triage",
     "displayName":  "Sicon Codeant Triage",
-    "version":  "0.6.0",
-    "description":  "CodeAnt Triage: /codeant-triage PR comment loop (Fix / Won\u0027t fix / Skip + UAP Disposition); /codeant-triage-uapscan and /codeant-triage-uapscan-deepscan UAP scans (no finalize); profile-only; recommends personal-todo",
+    "version":  "0.6.2",
+    "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally",
     "author":  {
                    "email":  "rudolf.bothma@sicon.co.uk",
                    "name":  "Rudolf Bothma"

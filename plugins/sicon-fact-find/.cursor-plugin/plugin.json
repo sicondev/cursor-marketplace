@@ -1,7 +1,7 @@
 {
     "name":  "sicon-fact-find",
     "displayName":  "Sicon Fact Find",
-    "version":  "0.1.3",
+    "version":  "0.1.4",
     "description":  "Neutral, read-only exploratory enquiry via /fact-find, with an optional topic",
     "author":  {
                    "email":  "rudolf.bothma@sicon.co.uk",

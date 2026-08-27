@@ -94,6 +94,85 @@ function parseFrontmatter(content) {
   return fields;
 }
 
+function stripYamlScalarQuotes(value) {
+  if (typeof value !== "string" || value.length < 2) {
+    return value || "";
+  }
+  const quote = value[0];
+  if ((quote === '"' || quote === "'") && value[value.length - 1] === quote) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function slashCommandMentioned(text, commandName) {
+  if (!text || !commandName) {
+    return false;
+  }
+  return new RegExp(`/${escapeRegExp(commandName)}(?![A-Za-z0-9_-])`).test(text);
+}
+
+async function validatePluginPickerCopy(pluginDir, pluginName, pluginDescription, marketplaceDescription) {
+  const commandsDir = path.join(pluginDir, "commands");
+  if (!(await pathExists(commandsDir))) {
+    return;
+  }
+
+  const files = await walkFiles(commandsDir);
+  const commands = [];
+  for (const file of files) {
+    const ext = path.extname(file).toLowerCase();
+    if (ext !== ".md" && ext !== ".mdc" && ext !== ".markdown" && ext !== ".txt") {
+      continue;
+    }
+    const content = await fs.readFile(file, "utf8");
+    const parsed = parseFrontmatter(content);
+    if (!parsed?.name) {
+      continue;
+    }
+    commands.push({
+      name: parsed.name,
+      description: stripYamlScalarQuotes(parsed.description || ""),
+      file: path.relative(repoRoot, file),
+    });
+  }
+
+  if (commands.length === 0) {
+    return;
+  }
+
+  const names = commands.map((command) => command.name);
+  for (const [label, text] of [
+    ["plugin.json description", pluginDescription],
+    ["marketplace entry description", marketplaceDescription],
+  ]) {
+    if (!text) {
+      continue;
+    }
+    const listed = names.filter((name) => slashCommandMentioned(text, name));
+    if (listed.length >= 2) {
+      addError(
+        `${pluginName}: ${label} lists multiple slash commands (${listed.map((name) => `/${name}`).join(", ")}). Use a short product sentence; each command has its own description.`
+      );
+    }
+  }
+
+  for (const command of commands) {
+    const hits = names.filter(
+      (name) => name !== command.name && slashCommandMentioned(command.description, name)
+    );
+    if (hits.length > 0) {
+      addError(
+        `${pluginName}: command description mentions other slash commands (${hits.map((name) => `/${name}`).join(", ")}): ${command.file}. Describe this command only.`
+      );
+    }
+  }
+}
+
 async function walkFiles(dirPath) {
   const files = [];
   const stack = [dirPath];
@@ -184,6 +263,33 @@ async function validateFrontmatterFile(filePath, componentName, requiredKeys, pl
     if (!parsed[key] || parsed[key].length === 0) {
       addError(`${pluginName}: ${componentName} file missing "${key}" in frontmatter: ${relativeFile}`);
     }
+  }
+
+  if (componentName === "command") {
+    validateCommandNoNestedFrontmatter(content, relativeFile, pluginName);
+  }
+}
+
+function validateCommandNoNestedFrontmatter(content, relativeFile, pluginName) {
+  const normalized = normalizeNewlines(content);
+  if (!normalized.startsWith("---\n")) {
+    return;
+  }
+  const closingIndex = normalized.indexOf("\n---\n", 4);
+  if (closingIndex === -1) {
+    return;
+  }
+  const rest = normalized.slice(closingIndex + 5);
+  const offsetLines = normalized.slice(0, closingIndex).split("\n").length + 1;
+  const lines = rest.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    if (!/^---\s*$/.test(lines[i])) {
+      continue;
+    }
+    const lineNo = offsetLines + i + 1;
+    addError(
+      `${pluginName}: command has extra --- after frontmatter (line ${lineNo}): ${relativeFile}. Cursor's plugin command catalog treats extra --- as another document and may omit this command or later commands in the plugin. Use headings instead of --- breaks.`
+    );
   }
 }
 
@@ -343,6 +449,12 @@ async function main() {
     }
 
     await validateComponentFrontmatter(pluginDir, entry.name);
+    await validatePluginPickerCopy(
+      pluginDir,
+      entry.name,
+      pluginManifest.description,
+      entry.description
+    );
 
     const hooksPath = path.join(pluginDir, "hooks", "hooks.json");
     if (!(await pathExists(hooksPath))) {

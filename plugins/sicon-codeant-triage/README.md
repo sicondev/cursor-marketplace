@@ -1,8 +1,8 @@
 # Sicon CodeAnt Triage
 
-Validate CodeAnt (Azure DevOps) PR comments one finding at a time, and scan for your local user anti-patterns.
+Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally.
 
-Install from the Sicon Team Marketplace, then use `/codeant-triage` in chat. Also: `/codeant-triage-uapscan` and `/codeant-triage-uapscan-deepscan`.
+Install from the Sicon Team Marketplace, then use the commands below in chat.
 
 ## What it stores locally
 
@@ -18,9 +18,9 @@ Run the pack’s init script from the plugin `scripts/` folder if the user catal
 
 | Command | Purpose |
 |---------|---------|
-| `/codeant-triage` | PR comment loop (Fix / Won't fix / Skip + UAP Disposition) |
+| `/codeant-triage` | Work through CodeAnt findings on a PR — fix, skip, or save as a personal anti-pattern |
 | `/codeant-triage <PR#>` | Fetch findings for that PR, then the same loop |
-| `/codeant-triage-uapscan` | Scan git-dirty files for in-scope UAPs (no commit) |
-| `/codeant-triage-uapscan-deepscan` | Workspace UAP scan (no commit) |
+| `/codeant-triage-uapscan` | Scan uncommitted files for those anti-patterns (no commit or PR reply) |
+| `/codeant-triage-uapscan-deepscan` | Scan the workspace or a folder (narrow the path if the scan is large) |
 
 Requires Windows integrated auth to on-prem Azure DevOps and a TFS-shaped `remote.origin.url`.

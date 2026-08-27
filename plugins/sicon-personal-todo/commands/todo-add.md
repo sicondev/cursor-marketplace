@@ -1,7 +1,8 @@
 ---
 name: todo-add
-description: Personal backlog in local Cursor memory via /todo-* slash commands
+description: Capture or refine a personal backlog item
 ---
+
 # todo-add — add or refine a personal backlog item
 
 User-scoped memory — not org/repo tooling.
@@ -58,7 +59,7 @@ Only when all of:
 
 - Item **UAP** is `UAP-N` (not `—` / missing).
 - Status just became **done** (this refine/complete turn).
-- `%USERPROFILE%\.cursor\packs\codeant-triage\anti-patterns.user.md` exists (`Test-Path`).
+- `%USERPROFILE%\.cursor\codeant-triage\anti-patterns.user.md` exists (`Test-Path`).
 
 Then **once** (do not repeat if user already declined this session for this id):
 

@@ -1,7 +1,8 @@
 ---
 name: todo
-description: Personal backlog in local Cursor memory via /todo-* slash commands
+description: Route a personal backlog request to list, explain, add, resume, howto, or init
 ---
+
 # todo — personal backlog router
 
 Thin router — load **exactly one** lane doc per invocation.
