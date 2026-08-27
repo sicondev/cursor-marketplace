@@ -1,0 +1,80 @@
+---
+description: Invoke CodeAnt Triage — validate CodeAnt (ADO) PR comments by PR number or pasted blocks (post-PR feedback loop)
+alwaysApply: false
+---
+
+<!-- contrib-managed: codeant-triage@0.6.0 — source: ai-devtools/contrib/codeant-triage/ — prefer PR there; local edits may be overwritten on sync -->
+
+# CodeAnt Triage triggers
+
+**Naming:** **CodeAnt (ADO)** = DevOps PR reviewer. **CodeAnt Triage** = this local workflow (`/codeant-triage`).
+
+When the user message matches a trigger below, follow **`/codeant-triage`** (do not `@~/.cursor/commands/codeant-triage.md` — plugin commands live under the plugin tree).
+
+User catalog: `%USERPROFILE%\.cursor\codeant-triage\anti-patterns.user.md`. Core catalog + scripts: dual-resolve `Get-CodeAntTriagePaths.ps1` (user pack `~\.cursor\packs\codeant-triage\scripts\` or plugin `sicon-codeant-triage`). Optional `codeant-uap-*.mdc`.
+
+**Engage when any:**
+
+- User gives an **Azure DevOps PR number** with a trigger (e.g. `/codeant-triage 28305`, `CodeAnt Triage PR #28306`), **or**
+- User pastes CodeAnt-style blocks (`**Path:**`, `**Comment:**`), **or**
+- User sends bare **`/codeant-triage`** — engage, then **AskQuestion** for PR id or pasted blocks **before** fetch (see trigger phrases below).
+
+PR-number mode: resolve scripts via `Get-CodeAntTriagePaths.ps1`, then run `Fetch-CodeAntPrFindings.ps1` first (see `/codeant-triage` command doc). Pasted blocks are not required.
+
+## Trigger phrases
+
+- `/codeant-triage <PR#>` — preferred; fetch immediately
+- `/codeant-triage` alone — engage, then **AskQuestion** for PR id or pasted blocks **before** fetch (do not run `Fetch-CodeAntPrFindings.ps1` until input is known)
+- "CodeAnt Triage" / "CodeAnt Triage PR" / "CodeAnt PR triage" (with `#<id>` or bare number; if no id, AskQuestion first)
+- "validate CodeAnt comments" (PR id required, or AskQuestion)
+- "validate the correctness of the flagged issue" (with Path/Comment blocks or PR id)
+
+## Clear Disposition (remediation complete)
+
+Also engage the command doc § **Clear Disposition** (without a full PR fetch) when the user says any of:
+
+- *remediation complete for UAP-N* / *UAP-N remediation done* / *UAP-N remediation finished*
+- *clear disposition on UAP-N*
+- during an active triage: *this remediation is done* (for a matched UAP)
+
+Resolve `UAP-N`, confirm when ambiguous, clear **only** the Disposition cell — never delete the UAP or profile rule.
+
+## Linear UX (per-finding — default)
+
+Do **not** evaluate all findings into one decision table and batch-AskQuestion as the opening. Follow the command doc loop:
+
+1. Short index (optional) → start finding #1
+2. **Explain in chat** → same turn: **`AskQuestion` tool call** (treat) — **do not** write options into the message
+3. Treat options: `Fix` / `Won't fix` / `Skip`; add **`Fix remaining`** when later findings exist
+4. If **Fix**: implement → show diff → same turn: **`AskQuestion` tool call** (confirm)
+5. If **Won't fix**: capture ADO reason → optional personal-todo offer (only when remediation intent + pack installed) → next finding
+6. Next finding → … → session rollup → finalize AskQuestion
+
+**Mid-loop escape:** chat `fix all` / `fix remaining` or treat **`Fix remaining`** → **AskQuestion confirm** (`Proceed` / `Cancel`) → batch implement Fix-targets → one batch accept. **Never silent** (command doc § Early escape).
+
+**Banned in chat:** `Reply with one of`, numbered `1. Fix`, pipe lists `Fix | Won't fix | Skip`. Those are not AskQuestion — they force typing. Options live **only** in the AskQuestion tool args. Do **not** add `Something else` — Cursor may already inject `Other…`.
+
+Never put findings detail inside the question card.
+
+## Finalize triggers (CodeAnt Triage only — after session rollup)
+
+**Scope:** `resolve` / `reply-only` / `commit-only` are **not** general commit-or-push shortcuts. They apply **only** when this rule engaged CodeAnt Triage and the session already has the per-finding results + finalize rollup for a PR.
+
+When that gate is satisfied:
+
+- **`resolve`** or **`resolve <PR#>`** — full finalize: commit (if changes) + push + ADO replies + mark threads Fixed (command doc § Finalize gate)
+- **`reply-only`** / **`commit-only`** / **`no`** / **skip** — partial paths per command doc
+
+Finalize commits: **no** `Co-authored-by`, **no** email addresses in the message (command doc § Finalize gate).
+
+Do **not** treat bare **`resolve`** as:
+
+- a new triage engagement, or
+- commit/push approval outside CodeAnt Triage
+
+## When NOT to engage
+
+- Pre-PR / pre-commit review without CodeAnt (ADO) comments or a PR id
+- Generic code review without CodeAnt context or PR id
+- User only asks about building the triage command (no PR id, no pasted findings)
+- `/codeant-triage-uapscan` / `/codeant-triage-uapscan-deepscan` — **slash-only**; do **not** treat as PR triage engagement (follow those command docs instead; no NL auto-engage for them)

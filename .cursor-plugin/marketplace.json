@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.11"
+                     "version":  "0.1.12"
                  },
     "plugins":  [
                     {
@@ -38,6 +38,11 @@
                         "name":  "sicon-ado-core",
                         "source":  "./plugins/sicon-ado-core",
                         "description":  "Shared Azure DevOps Git, pull-request, and work-item library for other Sicon plugins (no slash command)"
+                    },
+                    {
+                        "name":  "sicon-codeant-triage",
+                        "source":  "./plugins/sicon-codeant-triage",
+                        "description":  "CodeAnt Triage: /codeant-triage PR comment loop (Fix / Won\u0027t fix / Skip + UAP Disposition); /codeant-triage-uapscan and /codeant-triage-uapscan-deepscan UAP scans (no finalize); profile-only; recommends personal-todo"
                     }
                 ]
 }
