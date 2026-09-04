@@ -104,6 +104,10 @@ function Get-AdoGitApiBase {
 
 $script:CodeAntAuthorName = 'Code Ant'
 $script:CodeAntRetriggerCommentDefault = '@codeant-ai: review'
+$script:CodeAntRetriggerCommentVariants = @(
+    '@codeant-ai: review'
+    '#codeant-ai: review'
+)
 # Boilerplate patterns - skipped when extracting file findings via Get-FirstCodeAntComment.
 $script:CodeAntStartedPatterns = @(
     'CodeAnt AI is reviewing your PR'
@@ -133,14 +137,36 @@ function Test-IsCodeAntReviewBoilerplate {
     return $null
 }
 
+function Get-CodeAntRetriggerCommentMatchers {
+    param([string]$Comment = '')
+
+    if (-not [string]::IsNullOrWhiteSpace($Comment)) {
+        return @($Comment.Trim())
+    }
+    return @($script:CodeAntRetriggerCommentVariants)
+}
+
+function Test-IsCodeAntRetriggerCommentBody {
+    param(
+        [string]$Body,
+        [string]$Comment = ''
+    )
+
+    if ($null -eq $Body) { return $false }
+    $trimmed = $Body.Trim()
+    foreach ($expected in (Get-CodeAntRetriggerCommentMatchers -Comment $Comment)) {
+        if ($trimmed -ieq $expected) { return $true }
+    }
+    return $false
+}
+
 function Test-HasActiveCodeAntRetriggerThread {
     param(
         $Threads,
-        [string]$Comment = $script:CodeAntRetriggerCommentDefault
+        [string]$Comment = ''
     )
 
     if (-not $Threads) { return $false }
-    $expected = $Comment.Trim()
     foreach ($thread in $Threads) {
         $threadContext = Get-PsObjectPropertyValue -Object $thread -Name 'threadContext' -Default $null
         $filePath = ''
@@ -154,11 +180,11 @@ function Test-HasActiveCodeAntRetriggerThread {
         }
         if (-not (Test-IsActiveAdoThread -Status $status)) { continue }
         if (-not (Test-PsObjectHasProperty -Object $thread -Name 'comments')) { continue }
-        $threadComments = @(Get-AdoThreadComments -Thread $thread)
+        $threadComments = Get-AdoThreadComments -Thread $thread
         if ($threadComments.Count -eq 0) { continue }
         foreach ($threadComment in $threadComments) {
             $body = Get-AdoCommentContentText -Comment $threadComment
-            if ($body.Trim() -ieq $expected) { return $true }
+            if (Test-IsCodeAntRetriggerCommentBody -Body $body -Comment $Comment) { return $true }
         }
     }
     return $false
@@ -168,11 +194,10 @@ function Test-HasRecentCodeAntRetriggerThread {
     param(
         $Threads,
         [int]$WithinMinutes = 10,
-        [string]$Comment = $script:CodeAntRetriggerCommentDefault
+        [string]$Comment = ''
     )
 
     if (-not $Threads) { return $false }
-    $expected = $Comment.Trim()
     $cutoff = (Get-Date).ToUniversalTime().AddMinutes(-1 * $WithinMinutes)
     foreach ($thread in $Threads) {
         $threadContext = Get-PsObjectPropertyValue -Object $thread -Name 'threadContext' -Default $null
@@ -182,11 +207,11 @@ function Test-HasRecentCodeAntRetriggerThread {
         }
         if (-not [string]::IsNullOrWhiteSpace($filePath)) { continue }
         if (-not (Test-PsObjectHasProperty -Object $thread -Name 'comments')) { continue }
-        $threadComments = @(Get-AdoThreadComments -Thread $thread)
+        $threadComments = Get-AdoThreadComments -Thread $thread
         if ($threadComments.Count -eq 0) { continue }
         foreach ($threadComment in $threadComments) {
             $body = Get-AdoCommentContentText -Comment $threadComment
-            if ($body.Trim() -ne $expected) { continue }
+            if (-not (Test-IsCodeAntRetriggerCommentBody -Body $body -Comment $Comment)) { continue }
             $when = $null
             if ($threadComment.PSObject.Properties.Name -contains 'publishedDate') { $when = $threadComment.publishedDate }
             if (-not $when -and ($threadComment.PSObject.Properties.Name -contains 'lastUpdatedDate')) {
@@ -196,6 +221,163 @@ function Test-HasRecentCodeAntRetriggerThread {
         }
     }
     return $false
+}
+
+function Set-CodeAntAdoThreadStatus {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        [Parameter(Mandatory = $true)]
+        [int]$ThreadId,
+
+        [ValidateSet('Active', 'Fixed', 'WontFix', 'Closed', 'ByDesign')]
+        [string]$Status = 'Fixed',
+
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $statusMap = @{
+        Active   = 1
+        Fixed    = 2
+        WontFix  = 3
+        Closed   = 4
+        ByDesign = 5
+    }
+
+    $endpoints = Resolve-AdoCodeAntTriageEndpoints -Collection $Collection -Project $Project `
+        -Repository $Repository -ServerUrl $ServerUrl
+    $patchUri = "$($endpoints.ApiBase)/pullRequests/$PullRequestId/threads/$ThreadId`?api-version=7.0"
+    $patchBody = @{ status = $statusMap[$Status] } | ConvertTo-Json
+    Invoke-RestMethod -Uri $patchUri -Method Patch -Body $patchBody `
+        -ContentType 'application/json' -UseDefaultCredentials | Out-Null
+}
+
+function Get-CodeAntAdoContinuationToken {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Response
+    )
+
+    $headerValue = $Response.Headers['x-ms-continuationtoken']
+    if (-not $headerValue) { return $null }
+    $token = if ($headerValue -is [System.Array]) { [string]$headerValue[0] } else { [string]$headerValue }
+    if ([string]::IsNullOrWhiteSpace($token)) { return $null }
+    return $token
+}
+
+function Get-CodeAntPullRequestThreads {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $endpoints = Resolve-AdoCodeAntTriageEndpoints -Collection $Collection -Project $Project `
+        -Repository $Repository -ServerUrl $ServerUrl
+    $baseUri = "$($endpoints.ApiBase)/pullRequests/$PullRequestId/threads?api-version=7.0"
+    $threads = New-Object 'System.Collections.Generic.List[object]'
+    $continuationToken = $null
+    do {
+        $uri = $baseUri
+        if ($continuationToken) {
+            $uri = "$uri&continuationToken=$([uri]::EscapeDataString($continuationToken))"
+        }
+
+        $response = Invoke-WebRequest -Uri $uri -Method Get -UseDefaultCredentials -UseBasicParsing
+        $payload = $response.Content | ConvertFrom-Json
+        if ($payload.PSObject.Properties.Name -contains 'value' -and $payload.value) {
+            foreach ($item in @($payload.value)) {
+                [void]$threads.Add($item)
+            }
+        }
+
+        $continuationToken = Get-CodeAntAdoContinuationToken -Response $response
+    } while ($continuationToken)
+
+    return @($threads.ToArray())
+}
+
+function Test-IsCodeAntRetriggerThread {
+    param(
+        $Thread,
+        [string]$Comment = ''
+    )
+
+    if (-not $Thread) { return $false }
+    $threadContext = Get-PsObjectPropertyValue -Object $Thread -Name 'threadContext' -Default $null
+    $filePath = ''
+    if ($null -ne $threadContext) {
+        $filePath = [string](Get-PsObjectPropertyValue -Object $threadContext -Name 'filePath' -Default '')
+    }
+    if (-not [string]::IsNullOrWhiteSpace($filePath)) { return $false }
+
+    $status = 'active'
+    if ($Thread.PSObject.Properties.Name -contains 'status' -and $null -ne $Thread.status) {
+        $status = [string]$Thread.status
+    }
+    if (-not (Test-IsActiveAdoThread -Status $status)) { return $false }
+    if (-not (Test-PsObjectHasProperty -Object $Thread -Name 'comments')) { return $false }
+
+    foreach ($threadComment in (Get-AdoThreadComments -Thread $Thread)) {
+        $body = Get-AdoCommentContentText -Comment $threadComment
+        if (Test-IsCodeAntRetriggerCommentBody -Body $body -Comment $Comment) { return $true }
+    }
+    return $false
+}
+
+function Clear-CodeAntRetriggerThreads {
+    <#
+    .SYNOPSIS
+      Marks active CodeAnt trigger threads (@/# codeant-ai: review) Fixed so they do not block ADO autocomplete.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        $Threads,
+
+        [string]$Comment = '',
+
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    if (-not $Threads) {
+        $Threads = Get-CodeAntPullRequestThreads -PullRequestId $PullRequestId `
+            -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    }
+
+    $resolved = New-Object System.Collections.Generic.List[int]
+    $warnings = New-Object System.Collections.Generic.List[string]
+    foreach ($thread in @($Threads)) {
+        if (-not (Test-IsCodeAntRetriggerThread -Thread $thread -Comment $Comment)) { continue }
+        $threadId = [int]$thread.id
+        try {
+            Set-CodeAntAdoThreadStatus -PullRequestId $PullRequestId -ThreadId $threadId -Status Fixed `
+                -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+            $resolved.Add($threadId)
+        }
+        catch {
+            [void]$warnings.Add("Thread $threadId`: $($_.Exception.Message)")
+        }
+    }
+
+    return [pscustomobject]@{
+        PullRequestId = $PullRequestId
+        ResolvedCount = $resolved.Count
+        ThreadIds     = @($resolved.ToArray())
+        Warnings      = @($warnings.ToArray())
+    }
 }
 
 function Get-CodeAntFileFindingsFromThreads {
