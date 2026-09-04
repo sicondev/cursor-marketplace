@@ -120,7 +120,7 @@ if (-not $approved) {
 }
 
 if ($retriggerMayBeInFlight -and $counts.active -gt 0) {
-    Write-Output '>> Note: A recent @codeant-ai: review may still be in progress. Re-fetch after push/retrigger before triaging.'
+    Write-Output '>> Note: A recent @codeant-ai: review or #codeant-ai: review request may still be in progress. Re-fetch after push/retrigger before triaging.'
     Write-Output ''
 }
 

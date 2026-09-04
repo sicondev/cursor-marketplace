@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.17"
+                     "version":  "0.1.18"
                  },
     "plugins":  [
                     {
@@ -25,11 +25,6 @@
                         "description":  "Coach implementation briefs via /good-prompt — gap-fill until handoff to Plan"
                     },
                     {
-                        "name":  "sicon-codeant-triage",
-                        "source":  "./plugins/sicon-codeant-triage",
-                        "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
-                    },
-                    {
                         "name":  "sicon-personal-todo",
                         "source":  "./plugins/sicon-personal-todo",
                         "description":  "Keep a personal backlog in Cursor memory — list, explain, add, or pick up work"
@@ -43,6 +38,11 @@
                         "name":  "sicon-ado-core",
                         "source":  "./plugins/sicon-ado-core",
                         "description":  "Shared Azure DevOps Git, pull-request, and work-item library for other Sicon plugins (no slash command)"
+                    },
+                    {
+                        "name":  "sicon-codeant-triage",
+                        "source":  "./plugins/sicon-codeant-triage",
+                        "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
                     }
                 ]
 }

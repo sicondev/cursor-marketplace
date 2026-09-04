@@ -465,7 +465,16 @@ When remediation for a UAP is finished, **clear only the Disposition cell** — 
    - **`prompt`:** `Ready to finalize PR #<id>?`
    - Options (tool args only): `resolve` (Recommended) \| `reply-only` \| `commit-only` \| `no` — no pack-added freeform
 
-3. On **resolve** / **commit-only**: if there are local changes, commit then (for **resolve**) push → `Post-CodeAntPrThreadReply.ps1` per non-**skip** (`defer`) finding.
+3. On **resolve** / **reply-only** / **commit-only**:
+   - **resolve** / **commit-only**: if there are local changes, commit then (for **resolve**) push.
+   - **resolve** / **reply-only**: `Post-CodeAntPrThreadReply.ps1` per non-**skip** (`defer`) finding.
+   - **commit-only**: do **not** post ADO replies.
+
+4. On **resolve** / **reply-only** only (not **commit-only** / **no**): clear leftover Active CodeAnt **request** threads so they do not block ADO autocomplete (including zero-findings sessions). Match `@codeant-ai: review` and `#codeant-ai: review`. Warn on failure — do not fail the whole finalize if finding replies already succeeded.
+
+```powershell
+powershell -NoProfile -File "$triage\Clear-CodeAntRetriggerThreads.ps1" -PullRequestId <id>
+```
 
 **Commit message (mandatory for Planned commit + `git commit`):**
 

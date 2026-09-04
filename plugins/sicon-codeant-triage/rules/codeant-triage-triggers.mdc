@@ -3,7 +3,7 @@ description: Invoke CodeAnt Triage — validate CodeAnt (ADO) PR comments by PR 
 alwaysApply: false
 ---
 
-<!-- contrib-managed: codeant-triage@0.6.0 — source: ai-devtools/contrib/codeant-triage/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: codeant-triage@0.7.0 — source: ai-devtools/contrib/codeant-triage/ — prefer PR there; local edits may be overwritten on sync -->
 
 # CodeAnt Triage triggers
 
@@ -62,8 +62,9 @@ Never put findings detail inside the question card.
 
 When that gate is satisfied:
 
-- **`resolve`** or **`resolve <PR#>`** — full finalize: commit (if changes) + push + ADO replies + mark threads Fixed (command doc § Finalize gate)
-- **`reply-only`** / **`commit-only`** / **`no`** / **skip** — partial paths per command doc
+- **`resolve`** or **`resolve <PR#>`** — full finalize: commit (if changes) + push + ADO replies + mark finding threads Fixed + clear Active CodeAnt **request** threads (command doc § Finalize gate)
+- **`reply-only`** — ADO replies + clear Active request threads; no commit/push
+- **`commit-only`** / **`no`** / **skip** — partial paths per command doc (`commit-only` does **not** clear request threads)
 
 Finalize commits: **no** `Co-authored-by`, **no** email addresses in the message (command doc § Finalize gate).
 
