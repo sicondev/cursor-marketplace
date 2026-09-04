@@ -1,7 +1,7 @@
 {
     "name":  "sicon-ado-core",
     "displayName":  "Sicon Ado Core",
-    "version":  "0.2.0",
+    "version":  "0.3.0",
     "description":  "Shared Azure DevOps Git, pull-request, and work-item library for other Sicon plugins (no slash command)",
     "author":  {
                    "email":  "rudolf.bothma@sicon.co.uk",
