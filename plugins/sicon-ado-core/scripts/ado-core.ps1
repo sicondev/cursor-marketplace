@@ -450,6 +450,59 @@ function New-AdoCorePullRequest {
     }
 }
 
+function New-AdoCorePullRequestThread {
+    <#
+    .SYNOPSIS
+      Posts a general (non-file) comment on an Azure DevOps pull request discussion thread.
+    .DESCRIPTION
+      Generic ADO REST helper — callers own content and any workflow policy (e.g. CodeAnt
+      retrigger strings, skip/recent checks, thread resolve). Does not auto-resolve threads.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Content,
+
+        [string]$WorkspaceRoot = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $endpoints = Resolve-AdoCoreEndpoints -WorkspaceRoot $WorkspaceRoot -Collection $Collection `
+        -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $endpoints.ApiBase
+
+    $uri = "$($endpoints.ApiBase)/pullRequests/$PullRequestId/threads?api-version=7.0"
+    $body = @{
+        comments = @(
+            @{
+                parentCommentId = 0
+                content         = $Content
+                commentType     = 1
+            }
+        )
+        status = 1
+    } | ConvertTo-Json -Depth 5
+
+    $response = Invoke-RestMethod -Uri $uri -Method Post -Body $body `
+        -ContentType 'application/json' -UseDefaultCredentials
+
+    $threadId = [int]$response.id
+    $commentId = [int]$response.comments[0].id
+
+    return [pscustomobject]@{
+        PullRequestId = $PullRequestId
+        ThreadId      = $threadId
+        CommentId     = $commentId
+        PrUrl         = (Get-AdoCorePullRequestWebUrl -Endpoints $endpoints -PullRequestId $PullRequestId)
+        Content       = $Content
+    }
+}
+
 function Get-AdoCoreGitRepositoryMetadata {
     param(
         [Parameter(Mandatory = $true)]
