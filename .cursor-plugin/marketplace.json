@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.18"
+                     "version":  "0.1.19"
                  },
     "plugins":  [
                     {
@@ -43,6 +43,11 @@
                         "name":  "sicon-codeant-triage",
                         "source":  "./plugins/sicon-codeant-triage",
                         "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
+                    },
+                    {
+                        "name":  "sicon-git-core",
+                        "source":  "./plugins/sicon-git-core",
+                        "description":  "Shared local git invoke, head SHA, commit, and push library for other Sicon plugins (no slash command)"
                     }
                 ]
 }
