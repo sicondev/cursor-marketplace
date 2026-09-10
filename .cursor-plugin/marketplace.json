@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.22"
+                     "version":  "0.1.23"
                  },
     "plugins":  [
                     {
@@ -48,6 +48,11 @@
                         "name":  "sicon-codeant-triage",
                         "source":  "./plugins/sicon-codeant-triage",
                         "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
+                    },
+                    {
+                        "name":  "sicon-pr-clearance",
+                        "source":  "./plugins/sicon-pr-clearance",
+                        "description":  "Drive an Azure DevOps pull request to review-quiet via Policy, Human, and configured review tools"
                     }
                 ]
 }
