@@ -1,0 +1,16 @@
+{
+  "value": [
+    {
+      "id": 120,
+      "status": "active",
+      "comments": [
+        {
+          "id": 1,
+          "author": { "displayName": "Alice Reviewer" },
+          "content": "Looks good to me.",
+          "publishedDate": "2026-09-08T09:00:00Z"
+        }
+      ]
+    }
+  ]
+}

@@ -142,6 +142,47 @@ try {
         Assert-True ([string]$_.Exception.Message -match 'must not start with -') 'hyphen remote rejected before git'
     }
     Assert-True $optThrew 'Push-GitCore throws for option-like remote'
+
+    $lines = Join-Path $repo 'hunks.txt'
+    Set-Content -LiteralPath $lines -Value @('a', 'b', 'c', 'd') -Encoding UTF8
+    New-GitCoreCommit -RepoRoot $repo -Message 'git-core: hunk seed' -Path @('hunks.txt')
+    Set-Content -LiteralPath $lines -Value @('a', 'B', 'c', 'd', 'e') -Encoding UTF8
+    New-GitCoreCommit -RepoRoot $repo -Message 'git-core: hunk edit' -Path @('hunks.txt')
+    $hunks = @(Get-GitCoreDiffHunks -RepoRoot $repo -Range 'HEAD~1...HEAD')
+    Assert-True ($hunks.Count -eq 1) 'one file in the hunk diff'
+    Assert-True ($hunks[0].path -eq 'hunks.txt') 'hunk path is hunks.txt'
+    $starts = @($hunks[0].ranges | ForEach-Object { [int]$_.start })
+    $ends = @($hunks[0].ranges | ForEach-Object { [int]$_.end })
+    Assert-True ($starts -contains 2) 'replaced line is a one-line hunk'
+    Assert-True ($ends -contains 2) 'one-line hunk end equals start'
+    Assert-True ($starts -contains 5) 'appended line is in the hunks'
+    Assert-True ($ends -contains 5) 'appended line is a one-line range'
+
+    Set-Content -LiteralPath $lines -Value @('a', 'B', 'c', 'e') -Encoding UTF8
+    New-GitCoreCommit -RepoRoot $repo -Message 'git-core: hunk delete' -Path @('hunks.txt')
+    $deleted = @(Get-GitCoreDiffHunks -RepoRoot $repo -Range 'HEAD~1...HEAD')
+    $deleteRanges = @()
+    if ($deleted.Count -gt 0) {
+        $deleteRanges = @($deleted[0].ranges)
+    }
+    Assert-True ($deleteRanges.Count -eq 0) 'pure delete stores no HEAD range'
+
+    $rangeThrew = $false
+    try {
+        $null = Get-GitCoreDiffHunks -RepoRoot $repo -Range '--output=/tmp/x'
+    } catch {
+        $rangeThrew = $true
+        Assert-True ([string]$_.Exception.Message -match 'must not start with -') 'hyphen range rejected before git'
+    }
+    Assert-True $rangeThrew 'Get-GitCoreDiffHunks throws for option-like range'
+
+    $badRangeThrew = $false
+    try {
+        $null = Get-GitCoreDiffHunks -RepoRoot $repo -Range 'NOT_A_RANGE'
+    } catch {
+        $badRangeThrew = $true
+    }
+    Assert-True $badRangeThrew 'Get-GitCoreDiffHunks throws when git diff fails'
 }
 finally {
     Restore-GitCoreTestEnv -Root $repo

@@ -1,4 +1,4 @@
-﻿# Sicon Sage 200 Coding Standards (v1.4)
+# Sicon Sage 200 Coding Standards (v1.4)
 
 Apply these rules when writing or reviewing code that use the Sage 200 SDK.
 

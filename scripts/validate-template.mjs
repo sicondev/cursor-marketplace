@@ -60,7 +60,7 @@ async function readJsonFile(filePath, context) {
 }
 
 function normalizeNewlines(content) {
-  return content.replace(/\r\n/g, "\n");
+  return content.replace(/^\uFEFF/, "").replace(/\r\n/g, "\n");
 }
 
 function parseFrontmatter(content) {

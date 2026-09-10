@@ -1,0 +1,34 @@
+{
+  "value": [
+    {
+      "id": 101,
+      "status": "active",
+      "comments": [
+        {
+          "id": 1,
+          "author": { "displayName": "Code Ant" },
+          "content": "## CodeAnt AI — Review Status\n\n| Status | Commit | Started (UTC) | Finished (UTC) |\n| --- | --- | --- | --- |\n| ✅ Incremental review completed | `aaaaaaaa` | Sep 8, 2026 · 10:00 | 10:02 |\n",
+          "publishedDate": "2026-09-08T10:02:00Z"
+        },
+        {
+          "id": 2,
+          "author": { "displayName": "Code Ant" },
+          "content": "## CodeAnt AI — Review Status\n\n| Status | Commit | Started (UTC) | Finished (UTC) |\n| --- | --- | --- | --- |\n| ✅ Reviewed your PR | `bbbbbbbb` | Sep 8, 2026 · 10:15 | 10:20 |\n",
+          "publishedDate": "2026-09-08T10:20:00Z"
+        }
+      ]
+    },
+    {
+      "id": 105,
+      "status": "active",
+      "comments": [
+        {
+          "id": 1,
+          "author": { "displayName": "Reviewer" },
+          "content": "@codeant-ai: review",
+          "publishedDate": "2026-09-08T10:10:00Z"
+        }
+      ]
+    }
+  ]
+}

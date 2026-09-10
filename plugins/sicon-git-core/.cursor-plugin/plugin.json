@@ -1,7 +1,7 @@
 {
     "name":  "sicon-git-core",
     "displayName":  "Sicon Git Core",
-    "version":  "0.1.0",
+    "version":  "0.1.1",
     "description":  "Shared local git invoke, head SHA, commit, and push library for other Sicon plugins (no slash command)",
     "author":  {
                    "email":  "rudolf.bothma@sicon.co.uk",

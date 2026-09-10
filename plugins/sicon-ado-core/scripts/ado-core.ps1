@@ -503,6 +503,154 @@ function New-AdoCorePullRequestThread {
     }
 }
 
+function ConvertTo-AdoCoreThreadStatusCode {
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Active', 'Fixed', 'WontFix', 'Closed', 'ByDesign')]
+        [string]$Status
+    )
+
+    $statusMap = @{
+        Active   = 1
+        Fixed    = 2
+        WontFix  = 3
+        Closed   = 4
+        ByDesign = 5
+    }
+    return [int]$statusMap[$Status]
+}
+
+function Get-AdoCorePullRequestThreads {
+    <#
+    .SYNOPSIS
+      Lists Azure DevOps pull-request discussion threads (continuation-aware).
+    .DESCRIPTION
+      Generic ADO REST helper. Does not change thread status.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        [string]$WorkspaceRoot = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $endpoints = Resolve-AdoCoreEndpoints -WorkspaceRoot $WorkspaceRoot -Collection $Collection `
+        -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $endpoints.ApiBase
+
+    $baseUri = "$($endpoints.ApiBase)/pullRequests/$PullRequestId/threads?api-version=7.0"
+    $threads = New-Object 'System.Collections.Generic.List[object]'
+    $continuationToken = $null
+    do {
+        $uri = $baseUri
+        if ($continuationToken) {
+            $uri = "$uri&continuationToken=$([uri]::EscapeDataString($continuationToken))"
+        }
+
+        $response = Invoke-WebRequest -Uri $uri -Method Get -UseDefaultCredentials -UseBasicParsing
+        $payload = $response.Content | ConvertFrom-Json
+        if ($payload.PSObject.Properties.Name -contains 'value' -and $payload.value) {
+            foreach ($item in @($payload.value)) {
+                [void]$threads.Add($item)
+            }
+        }
+
+        $continuationToken = Get-AdoCoreContinuationToken -Response $response
+    } while ($continuationToken)
+
+    return , ([object[]]$threads.ToArray())
+}
+
+function Add-AdoCorePullRequestThreadComment {
+    <#
+    .SYNOPSIS
+      Posts a reply on an Azure DevOps pull-request discussion thread.
+    .DESCRIPTION
+      Generic ADO REST helper. Does not set thread status.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        [Parameter(Mandatory = $true)]
+        [int]$ThreadId,
+
+        [Parameter(Mandatory = $true)]
+        [int]$ParentCommentId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Content,
+
+        [string]$WorkspaceRoot = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $endpoints = Resolve-AdoCoreEndpoints -WorkspaceRoot $WorkspaceRoot -Collection $Collection `
+        -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $endpoints.ApiBase
+
+    $Content = $Content -creplace '(\\\\n|\\n|`n)', [Environment]::NewLine
+
+    $uri = "$($endpoints.ApiBase)/pullRequests/$PullRequestId/threads/$ThreadId/comments?api-version=7.0"
+    $body = @{
+        parentCommentId = $ParentCommentId
+        content         = $Content
+        commentType     = 1
+    } | ConvertTo-Json
+
+    $posted = Invoke-RestMethod -Uri $uri -Method Post -Body $body `
+        -ContentType 'application/json' -UseDefaultCredentials
+
+    return [pscustomobject]@{
+        PullRequestId = $PullRequestId
+        ThreadId      = $ThreadId
+        CommentId     = [int]$posted.id
+        Content       = $Content
+    }
+}
+
+function Set-AdoCorePullRequestThreadStatus {
+    <#
+    .SYNOPSIS
+      Sets Azure DevOps pull-request discussion thread status.
+    .DESCRIPTION
+      Generic ADO REST helper. Callers own when to resolve; list and reply do not set status.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        [Parameter(Mandatory = $true)]
+        [int]$ThreadId,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Active', 'Fixed', 'WontFix', 'Closed', 'ByDesign')]
+        [string]$Status,
+
+        [string]$WorkspaceRoot = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $endpoints = Resolve-AdoCoreEndpoints -WorkspaceRoot $WorkspaceRoot -Collection $Collection `
+        -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $endpoints.ApiBase
+
+    $uri = "$($endpoints.ApiBase)/pullRequests/$PullRequestId/threads/$ThreadId`?api-version=7.0"
+    $body = @{ status = (ConvertTo-AdoCoreThreadStatusCode -Status $Status) } | ConvertTo-Json
+    Invoke-RestMethod -Uri $uri -Method Patch -Body $body `
+        -ContentType 'application/json' -UseDefaultCredentials | Out-Null
+}
+
 function Get-AdoCoreGitRepositoryMetadata {
     param(
         [Parameter(Mandatory = $true)]

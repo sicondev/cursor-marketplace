@@ -11,6 +11,7 @@ ADO Core owns generic operations:
 - Resolve on-premises ADO endpoints from `remote.origin.url`
 - Query, resolve, and create pull requests
 - Post general PR discussion threads (`New-AdoCorePullRequestThread`)
+- List PR discussion threads, reply without changing status, and set thread status
 - Build PR web URLs
 - Resolve authenticated-user metadata
 - Link work items to pull requests and commits

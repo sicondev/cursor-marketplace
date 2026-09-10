@@ -182,7 +182,7 @@ Emit a detailed block:
 | **Proposed change** | Concrete files + behaviour if Fix is chosen (**do not apply yet**) |
 | **Recommendation** | Fix now \| Won't fix \| Skip — one-line rationale. When a matched UAP Disposition still fits current evidence, prefer **Won't fix** and mark the treat label `(Recommended)` — Disposition **guides**, never auto-decides. Blank Disposition never steers toward Won't fix. |
 
-Record `threadId` / `parentCommentId` from fetch `-Json`; draft **Issue:** / **Fix:** for finalize (do not put CAP-/AP-/UAP- IDs or Disposition jargon in ADO text).
+Record `threadId` / `parentCommentId` from fetch `-Json`; draft **Issue:** / **Fix:** for accepted fixes, or **Issue:** / **WontFix Reason:** for won't-fix decisions (do not put CAP-/AP-/UAP- IDs or Disposition jargon in ADO text).
 
 **Duplicates:** If this finding is the same hole as an earlier finding already **Accepted**, say so (e.g. covered by #1), skip re-implement unless the user asks, and still AskQuestion if ADO action might differ.
 
@@ -219,7 +219,7 @@ Chat overrides for the **current** finding: "skip this", "defer this", "won't fi
 
 Gate 1 **never** writes a UAP. After `dont_fix`:
 
-1. **Reason (required for ADO — do not re-interview when already known):** Resolve a concise reason suitable for the ADO `**Fix:**` line, then record it for finalize. Prefer the first match; **ask only when none apply**:
+1. **Reason (required for ADO — do not re-interview when already known):** Resolve a concise reason suitable for the ADO `**WontFix Reason:**` line, then record it for finalize. Prefer the first match; **ask only when none apply**:
    1. **User-supplied in this choice** — chat override, text-fallback reply, or host **Other…** free text that includes a reason beyond bare `won't fix` / `dont_fix` (e.g. `Won't fix — will add a unit test later`). Use that reason; **do not** ask again.
    2. **Recommendation / Disposition already on the finding** — bare `won't fix` (card click or blank typed disposition) with a one-line Recommendation rationale (or a matching populated UAP Disposition that drove the recommend). Reuse that rationale; **do not** ask again.
    3. **Otherwise** — ask one short free-text question in chat (e.g. waiting on another PR, systemic unit test later, suggestion invalid).
@@ -495,6 +495,7 @@ powershell -NoProfile -File "$triage\Post-CodeAntPrThreadReply.ps1" -PullRequest
 ```
 
 Use **double-quoted** `-Reply` so `` `n `` becomes a real newline.
+For `-Status WontFix`, build `-Reply` as `"**Issue:** …`n**WontFix Reason:** …"`; never put a WontFix reason on the `**Fix:**` line.
 
 | User choice | `-Resolve` | `-Status WontFix` |
 |-------------|------------|-------------------|
@@ -507,14 +508,21 @@ Use **double-quoted** `-Reply` so `` `n `` becomes a real newline.
 
 ## ADO PR reply text (human-readable — mandatory)
 
-Two lines only:
+Two lines only. Accepted fix:
 
 ```text
 **Issue:** <what CodeAnt flagged, everyday language>
-**Fix:** <what we did, or why no change>
+**Fix:** <what we did and why it addresses the finding>
 ```
 
-For Won't fix, put the captured reason on the `**Fix:**` line. Never include CAP-/AP-/UAP- IDs, pack paths, `.mdc` paths, Disposition field names, "Invalid:", "parity deferred", or catalog jargon in ADO replies.
+WontFix:
+
+```text
+**Issue:** <what CodeAnt flagged, everyday language>
+**WontFix Reason:** <why no change is warranted>
+```
+
+Never include CAP-/AP-/UAP- IDs, pack paths, `.mdc` paths, Disposition field names, "Invalid:", "parity deferred", or catalog jargon in ADO replies.
 
 ## Invariants (disposition + todo)
 

@@ -1,0 +1,33 @@
+{
+  "value": [
+    {
+      "id": 101,
+      "status": "active",
+      "comments": [
+        {
+          "id": 1,
+          "author": { "displayName": "Code Ant" },
+          "content": "## \uD83E\uDD16 CodeAnt AI \u2014 Review Status\n\n| Status | Commit | Started (UTC) | Finished (UTC) |\n| --- | --- | --- | --- |\n| \u2705 Incremental review completed | `aaaaaaaa` | Sep 8, 2026 \u00B7 10:00 | 10:02 |\n",
+          "publishedDate": "2026-09-08T10:02:00Z"
+        }
+      ]
+    },
+    {
+      "id": 202,
+      "status": "active",
+      "threadContext": {
+        "filePath": "/src/App.cs",
+        "rightFileStart": { "line": 12 },
+        "rightFileEnd": { "line": 18 }
+      },
+      "comments": [
+        {
+          "id": 7,
+          "author": { "displayName": "Code Ant" },
+          "content": "Avoid empty catch.",
+          "publishedDate": "2026-09-08T10:03:00Z"
+        }
+      ]
+    }
+  ]
+}

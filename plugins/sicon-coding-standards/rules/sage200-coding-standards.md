@@ -1,4 +1,4 @@
-﻿---
+---
 description: Sicon Sage 200 coding standards for best practices when working with the Sage 200 SDK
 globs: **/*.cs
 alwaysApply: false

@@ -24,3 +24,5 @@ Run the pack’s init script from the plugin `scripts/` folder if the user catal
 | `/codeant-triage-uapscan-deepscan` | Scan the workspace or a folder (narrow the path if the scan is large) |
 
 Requires Windows integrated auth to on-prem Azure DevOps and a TFS-shaped `remote.origin.url`.
+
+**Silent triage (pr-clearance):** When the Sicon **pr-clearance** pack is installed, clearance can invoke **silent triage** from this plugin — same CodeAnt evaluation as `/codeant-triage` but without the interactive AskQuestion loop. The agent contract lives in `content/codeant-silent-triage.md`; validation uses `Invoke-CodeAntSilentTriage` from the pack scripts. This is not a user-facing slash command.
