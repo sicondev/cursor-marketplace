@@ -1,0 +1,7 @@
+{
+  "review": "codeant-triage",
+  "findings": "codeant-triage",
+  "forge": "ado-core",
+  "vcs": "git-core",
+  "specialist": "codeant-triage"
+}
