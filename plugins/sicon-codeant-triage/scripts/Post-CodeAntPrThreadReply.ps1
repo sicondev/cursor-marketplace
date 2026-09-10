@@ -7,7 +7,8 @@
 .PARAMETER ThreadId
   PR comment thread id (from Fetch-CodeAntPrFindings.ps1 -Json).
 .PARAMETER Reply
-  Reply body (markdown). Use concise **Issue:** / **Fix:** lines in plain language for PR readers
+  Reply body (markdown). Use concise **Issue:** / **Fix:** lines for a fixed finding, or
+  **Issue:** / **WontFix Reason:** when Status is WontFix. Keep plain language for PR readers
   (no CAP-/AP- ids, pack paths, parity, or deferral jargon — see /codeant-triage § ADO PR reply text).
 .PARAMETER ParentCommentId
   Parent comment id to reply under (required; use ParentCommentId from Fetch-CodeAntPrFindings.ps1 -Json).
@@ -47,31 +48,11 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot 'codeant-triage-lib.ps1')
 
-$StatusMap = @{
-    Active   = 1
-    Fixed    = 2
-    WontFix  = 3
-    Closed   = 4
-    ByDesign = 5
-}
-
-$endpoints = Resolve-AdoCodeAntTriageEndpoints -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
-$apiBase = $endpoints.ApiBase
-$threadBase = "$apiBase/pullRequests/$PullRequestId/threads/$ThreadId"
-
-# Callers often pass literal `n when nesting shells or using single-quoted -Reply; expand before ADO post.
-# Longest token first: `\\n` (two backslashes + n) before `\n` (one backslash + n) before `` `n ``.
-$Reply = $Reply -creplace '(\\\\n|\\n|`n)', [Environment]::NewLine
-
-$commentUri = "$threadBase/comments?api-version=7.0"
-$commentBody = @{
-    parentCommentId = $ParentCommentId
-    content         = $Reply
-    commentType     = 1
-} | ConvertTo-Json
-
-$posted = Invoke-RestMethod -Uri $commentUri -Method Post -Body $commentBody -ContentType 'application/json' -UseDefaultCredentials
-Write-Output ('Posted reply on PR ' + $PullRequestId + ' thread ' + $ThreadId + ' (comment ' + $posted.id + ')')
+Import-CodeAntAdoCore | Out-Null
+$posted = Add-AdoCorePullRequestThreadComment -PullRequestId $PullRequestId `
+    -ThreadId $ThreadId -ParentCommentId $ParentCommentId -Content $Reply `
+    -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+Write-Output ('Posted reply on PR ' + $PullRequestId + ' thread ' + $ThreadId + ' (comment ' + $posted.CommentId + ')')
 
 $targetStatus = $Status
 if (-not $targetStatus -and $Resolve) {
@@ -79,8 +60,8 @@ if (-not $targetStatus -and $Resolve) {
 }
 
 if ($targetStatus) {
-    $patchUri = "$threadBase`?api-version=7.0"
-    $patchBody = @{ status = $StatusMap[$targetStatus] } | ConvertTo-Json
-    Invoke-RestMethod -Uri $patchUri -Method Patch -Body $patchBody -ContentType 'application/json' -UseDefaultCredentials | Out-Null
+    Set-AdoCorePullRequestThreadStatus -PullRequestId $PullRequestId `
+        -ThreadId $ThreadId -Status $targetStatus `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
     Write-Output ('Thread ' + $ThreadId + ' marked ' + $targetStatus)
 }

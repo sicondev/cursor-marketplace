@@ -223,6 +223,122 @@ function Test-HasRecentCodeAntRetriggerThread {
     return $false
 }
 
+function Test-CodeAntAdoCoreExports {
+    $required = @{
+        'New-AdoCorePullRequestThread' = @(
+            'PullRequestId', 'Content', 'WorkspaceRoot', 'Collection', 'Project', 'Repository', 'ServerUrl'
+        )
+        'Get-AdoCorePullRequestThreads' = @(
+            'PullRequestId', 'WorkspaceRoot', 'Collection', 'Project', 'Repository', 'ServerUrl'
+        )
+        'Add-AdoCorePullRequestThreadComment' = @(
+            'PullRequestId', 'ThreadId', 'ParentCommentId', 'Content',
+            'WorkspaceRoot', 'Collection', 'Project', 'Repository', 'ServerUrl'
+        )
+        'Set-AdoCorePullRequestThreadStatus' = @(
+            'PullRequestId', 'ThreadId', 'Status',
+            'WorkspaceRoot', 'Collection', 'Project', 'Repository', 'ServerUrl'
+        )
+        'Resolve-AdoCoreEndpoints' = @(
+            'WorkspaceRoot', 'Collection', 'Project', 'Repository', 'ServerUrl'
+        )
+        'Assert-AdoCoreTrustedApiBase' = @(
+            'ApiBase'
+        )
+    }
+    foreach ($name in $required.Keys) {
+        $command = Get-Command -Name $name -ErrorAction SilentlyContinue
+        if (-not $command) {
+            return $false
+        }
+        foreach ($parameter in $required[$name]) {
+            if (-not $command.Parameters.ContainsKey($parameter)) {
+                return $false
+            }
+        }
+    }
+    return $true
+}
+
+function Get-CodeAntAdoCoreScriptCandidates {
+    param([string]$ProfileRoot = $env:USERPROFILE)
+
+    $candidates = New-Object 'System.Collections.Generic.List[string]'
+    $pluginsRoot = Join-Path $ProfileRoot '.cursor\plugins'
+    $direct = Join-Path $pluginsRoot 'sicon-ado-core\scripts\ado-core.ps1'
+    if (Test-Path -LiteralPath $direct -PathType Leaf) {
+        [void]$candidates.Add($direct)
+    }
+
+    $cacheRoot = Join-Path $pluginsRoot 'cache'
+    if (Test-Path -LiteralPath $cacheRoot) {
+        $cached = @(
+            Get-ChildItem -LiteralPath $cacheRoot -Recurse -Filter 'ado-core.ps1' -File -ErrorAction SilentlyContinue |
+                Where-Object {
+                    $_.FullName -match '[\\/]sicon-ado-core[\\/].*[\\/]scripts[\\/]ado-core\.ps1$'
+                } |
+                Sort-Object LastWriteTimeUtc -Descending
+        )
+        foreach ($item in $cached) {
+            if (-not $candidates.Contains($item.FullName)) {
+                [void]$candidates.Add($item.FullName)
+            }
+        }
+    }
+
+    $userPack = Join-Path $ProfileRoot '.cursor\packs\ado-core\scripts\ado-core.ps1'
+    if (Test-Path -LiteralPath $userPack -PathType Leaf) {
+        [void]$candidates.Add($userPack)
+    }
+    return @($candidates.ToArray())
+}
+
+function Resolve-CodeAntAdoCoreScriptPath {
+    param([string]$ProfileRoot = $env:USERPROFILE)
+
+    $candidates = @(Get-CodeAntAdoCoreScriptCandidates -ProfileRoot $ProfileRoot)
+    if ($candidates.Count -gt 0) {
+        return $candidates[0]
+    }
+    throw 'ADO Core library not found. Install or upgrade sicon-ado-core from the Sicon Team Marketplace (or Install-UserPack -Pack ado-core).'
+}
+
+function Import-CodeAntAdoCore {
+    param([string]$ProfileRoot = $env:USERPROFILE)
+
+    $candidates = @(Get-CodeAntAdoCoreScriptCandidates -ProfileRoot $ProfileRoot)
+    foreach ($path in $candidates) {
+        try {
+            $before = @{}
+            Get-ChildItem Function: | ForEach-Object { $before[$_.Name] = $_.ScriptBlock }
+            . $path
+            $loadedFunctions = @(Get-ChildItem Function:)
+            $loadedFunctions | ForEach-Object {
+                $name = $_.Name
+                $updated = -not $before.ContainsKey($name)
+                if (-not $updated) {
+                    $updated = -not [object]::ReferenceEquals($before[$name], $_.ScriptBlock)
+                }
+                if ($updated) {
+                    Set-Item -Path "Function:global:$name" -Value $_.ScriptBlock
+                }
+            }
+            if (Test-CodeAntAdoCoreExports) {
+                return $true
+            }
+        }
+        catch {
+            continue
+        }
+    }
+
+    if ($candidates.Count -eq 0) {
+        throw 'ADO Core library not found. Install or upgrade sicon-ado-core from the Sicon Team Marketplace (or Install-UserPack -Pack ado-core).'
+    }
+
+    throw "ADO Core is installed but missing required PR thread helpers. Upgrade sicon-ado-core, then retry. Checked: $($candidates -join ', ')"
+}
+
 function Set-CodeAntAdoThreadStatus {
     param(
         [Parameter(Mandatory = $true)]
@@ -237,23 +353,14 @@ function Set-CodeAntAdoThreadStatus {
         [string]$Collection = '',
         [string]$Project = '',
         [string]$Repository = '',
-        [string]$ServerUrl = ''
+        [string]$ServerUrl = '',
+        [string]$WorkspaceRoot = ''
     )
 
-    $statusMap = @{
-        Active   = 1
-        Fixed    = 2
-        WontFix  = 3
-        Closed   = 4
-        ByDesign = 5
-    }
-
-    $endpoints = Resolve-AdoCodeAntTriageEndpoints -Collection $Collection -Project $Project `
-        -Repository $Repository -ServerUrl $ServerUrl
-    $patchUri = "$($endpoints.ApiBase)/pullRequests/$PullRequestId/threads/$ThreadId`?api-version=7.0"
-    $patchBody = @{ status = $statusMap[$Status] } | ConvertTo-Json
-    Invoke-RestMethod -Uri $patchUri -Method Patch -Body $patchBody `
-        -ContentType 'application/json' -UseDefaultCredentials | Out-Null
+    Import-CodeAntAdoCore | Out-Null
+    Set-AdoCorePullRequestThreadStatus -PullRequestId $PullRequestId -ThreadId $ThreadId -Status $Status `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl `
+        -WorkspaceRoot $WorkspaceRoot
 }
 
 function Get-CodeAntAdoContinuationToken {
@@ -277,11 +384,12 @@ function Get-CodeAntPullRequestThreads {
         [string]$Collection = '',
         [string]$Project = '',
         [string]$Repository = '',
-        [string]$ServerUrl = ''
+        [string]$ServerUrl = '',
+        [string]$WorkspaceRoot = ''
     )
 
     $endpoints = Resolve-AdoCodeAntTriageEndpoints -Collection $Collection -Project $Project `
-        -Repository $Repository -ServerUrl $ServerUrl
+        -Repository $Repository -ServerUrl $ServerUrl -WorkspaceRoot $WorkspaceRoot
     $baseUri = "$($endpoints.ApiBase)/pullRequests/$PullRequestId/threads?api-version=7.0"
     $threads = New-Object 'System.Collections.Generic.List[object]'
     $continuationToken = $null
@@ -349,12 +457,14 @@ function Clear-CodeAntRetriggerThreads {
         [string]$Collection = '',
         [string]$Project = '',
         [string]$Repository = '',
-        [string]$ServerUrl = ''
+        [string]$ServerUrl = '',
+        [string]$WorkspaceRoot = ''
     )
 
-    if (-not $Threads) {
+    if (-not $PSBoundParameters.ContainsKey('Threads') -or $null -eq $Threads) {
         $Threads = Get-CodeAntPullRequestThreads -PullRequestId $PullRequestId `
-            -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+            -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl `
+            -WorkspaceRoot $WorkspaceRoot
     }
 
     $resolved = New-Object System.Collections.Generic.List[int]
@@ -364,7 +474,8 @@ function Clear-CodeAntRetriggerThreads {
         $threadId = [int]$thread.id
         try {
             Set-CodeAntAdoThreadStatus -PullRequestId $PullRequestId -ThreadId $threadId -Status Fixed `
-                -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+                -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl `
+                -WorkspaceRoot $WorkspaceRoot
             $resolved.Add($threadId)
         }
         catch {
@@ -408,6 +519,7 @@ function Get-CodeAntFileFindingsFromThreads {
 
         $index++
         [void]$findings.Add([pscustomobject]@{
+                Id              = [string]$thread.id
                 Number          = $index
                 Path            = $path
                 Line            = Get-AdoThreadLineRange -ThreadContext $threadContext
@@ -428,16 +540,19 @@ function Get-CodeAntFindingCounts {
         $Findings = $null
     )
 
-    if ($null -eq $Findings) {
-        if ($null -eq $Threads) {
-            throw 'Get-CodeAntFindingCounts requires -Threads or -Findings.'
-        }
-        $Findings = Get-CodeAntFileFindingsFromThreads -Threads $Threads
+    if ($PSBoundParameters.ContainsKey('Findings')) {
+        $Findings = @($Findings | Where-Object { $null -ne $_ })
+    }
+    elseif ($null -ne $Threads) {
+        $Findings = @(Get-CodeAntFileFindingsFromThreads -Threads $Threads | Where-Object { $null -ne $_ })
+    }
+    else {
+        throw 'Get-CodeAntFindingCounts requires -Threads or -Findings.'
     }
 
     $active = 0
     $fixed = 0
-    foreach ($finding in @($Findings)) {
+    foreach ($finding in $Findings) {
         if (Test-IsActiveAdoThread -Status $finding.ThreadStatus) {
             $active++
         }
@@ -458,11 +573,15 @@ function Resolve-AdoCodeAntTriageEndpoints {
         [string]$Collection = '',
         [string]$Project = '',
         [string]$Repository = '',
-        [string]$ServerUrl = ''
+        [string]$ServerUrl = '',
+        [string]$WorkspaceRoot = ''
     )
 
     if (-not $ServerUrl -or -not $Collection -or -not $Project -or -not $Repository) {
-        $root = Get-GitWorkspaceRoot
+        $root = $WorkspaceRoot
+        if ([string]::IsNullOrWhiteSpace($root)) {
+            $root = Get-GitWorkspaceRoot
+        }
         $defaults = Get-AdoDefaultsFromGitRemote -WorkspaceRoot $root
         if (-not $ServerUrl) { $ServerUrl = $defaults.ServerUrl }
         if (-not $Collection) { $Collection = $defaults.Collection }
@@ -655,6 +774,7 @@ function Get-HumanPrFindingsFromThreads {
 
         $index++
         [void]$findings.Add([pscustomobject]@{
+                Id              = [string]$thread.id
                 Number          = $index
                 Path            = $path
                 Line            = Get-AdoThreadLineRange -ThreadContext $threadContext
@@ -910,3 +1030,6 @@ function Get-CodeAntTriagePathSet {
         legacyPackRoot  = Get-CodeAntTriageLegacyPackRoot -ProfileRoot $profile
     }
 }
+
+. (Join-Path $PSScriptRoot 'codeant-review-state.ps1')
+. (Join-Path $PSScriptRoot 'codeant-silent-triage.ps1')

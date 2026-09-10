@@ -66,7 +66,7 @@ if ($threadsResponse.PSObject.Properties.Name -contains 'value' -and $null -ne $
     $threadList = @($threadsResponse.value)
 }
 
-$allFindings = Get-CodeAntFileFindingsFromThreads -Threads $threadList
+$allFindings = @(Get-CodeAntFileFindingsFromThreads -Threads $threadList)
 $counts = Get-CodeAntFindingCounts -Findings $allFindings
 $findings = New-Object 'System.Collections.Generic.List[object]'
 $activeIndex = 0
