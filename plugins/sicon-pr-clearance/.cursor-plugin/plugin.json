@@ -1,7 +1,7 @@
 {
     "name":  "sicon-pr-clearance",
-    "displayName":  "Sicon Pr Clearance",
-    "version":  "0.2.2",
+    "displayName":  "Sicon PR Clearance",
+    "version":  "0.2.3",
     "description":  "Drive an Azure DevOps pull request to review-quiet via Policy, Human, and configured review tools",
     "author":  {
                    "email":  "rudolf.bothma@sicon.co.uk",
