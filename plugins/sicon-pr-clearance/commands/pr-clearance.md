@@ -41,7 +41,7 @@ Read `$policyMd`. Do not assume `packs\pr-clearance\policy\` — the plugin ship
 
 ## For the agent
 
-This command is the **driver**. Call **port names** from the lib (`Get-ReviewState`, `Wait-ReviewFinished`, `Request-Review`, `Clear-ReviewRequests`, `Get-ReviewFindings`, `Complete-ReviewFinding`, `Get-PrClearanceNextAction`, `Test-PrClearanceQuiet`, `Resolve-PrClearanceRepoRoot`, `Invoke-PrClearanceSpecialist`, `Group-PrClearancePassFindingsByPath`, `Get-PrClearanceSpecialistReply`) and coordinator helpers (`Get-PrClearanceDismissedReply`, `Read-PrClearanceActRegister`, `Save-PrClearanceActRegister`, `Set-PrClearanceChangedPaths`, `Set-PrClearanceFindingPathSnapshot`, `Get-PrClearanceFindingFingerprint`, `Get-PrClearancePolicyOverride`, `Get-PrClearancePolicyDecision`, `Get-PrClearancePrChangedPaths`, `Test-PrClearanceFindingInPrScope`, `Add-PrClearanceActRegisterFix`, `Add-PrClearanceActRegisterPathBatch`, `Add-PrClearanceActRegisterJoin`, `Test-PrClearanceShouldKickAfterAct`, `Get-PrClearanceRepeatedReport`). Do not hardcode a vendor command name in chat or config.
+This command is the **driver**. Call **port names** from the lib (`Get-ReviewState`, `Wait-ReviewFinished`, `Request-Review`, `Clear-ReviewRequests`, `Get-ReviewFindings`, `Complete-ReviewFinding`, `Get-PrClearanceNextAction`, `Test-PrClearanceQuiet`, `Resolve-PrClearanceRepoRoot`, `Invoke-PrClearanceSpecialist`, `Group-PrClearancePassFindingsByPath`, `Get-PrClearanceSpecialistReply`) and coordinator helpers (`Get-PrClearanceDismissedReply`, `Read-PrClearanceActRegister`, `Save-PrClearanceActRegister`, `Remove-PrClearanceActRegister`, `Test-PrClearanceActRegisterExists`, `Set-PrClearanceChangedPaths`, `Set-PrClearanceFindingPathSnapshot`, `Get-PrClearanceFindingFingerprint`, `Get-PrClearancePolicyOverride`, `Get-PrClearancePolicyDecision`, `Get-PrClearancePrChangedPaths`, `Test-PrClearanceFindingInPrScope`, `Add-PrClearanceActRegisterFix`, `Add-PrClearanceActRegisterPathBatch`, `Add-PrClearanceActRegisterJoin`, `Test-PrClearanceShouldKickAfterAct`, `Get-PrClearanceRepeatedReport`). Do not hardcode a vendor command name in chat or config.
 
 `Import-PrClearanceTools` loads bind-config **tool ids** (`review`, `findings`, `forge`, `vcs`, `specialist`) and the already-installed packs those ids name. Default ids are `codeant-triage`, `codeant-triage`, `ado-core`, `git-core`, `codeant-triage`. Required functions for `codeant-triage` include the Get-CodeAnt* names and `Invoke-CodeAntSilentTriage`. Missing `Invoke-CodeAntSilentTriage` → tell the user to install or upgrade **codeant-triage**.
 
@@ -68,8 +68,13 @@ After the root is known, pass `-WorkspaceRoot` on port calls. Vcs uses that root
 3. Repo root resolved; header: PR id, web URL (from the hit), branch, tip SHA (12-char prefix via `Get-GitCoreHeadSha`).
 4. Current branch in that root equals the PR `sourceRefName` (strip `refs/heads/`). Mismatch → stop; user checks out that branch. Do not switch branches.
 5. Working tree clean (`Test-PrClearanceWorkingTreeClean` or `Invoke-GitCore status --porcelain` empty). Dirty → stop; user commits or stashes. Do not stash.
-6. `changedPaths = Get-PrClearancePrChangedPaths -RepoRoot -TargetRef` (PR `targetRefName`). If that throws, continue without `-ChangedPaths` and add a finalize reason. Do not invent an empty allowlist.
-7. `Set-PrClearanceChangedPaths` on the register (once). Do not recompute `origin/target...HEAD` in later batches — a later commit must not grow the allowlist.
+6. If `Test-PrClearanceActRegisterExists -RepoRoot -PullRequestId`: a prior clearance for this PR left a register (interrupted run, or finalize did not delete). Stop and `AskQuestion` before the loop — do not silently resume or silently wipe.
+   - `prompt`: `PR #<id> already has a clearance register. Continue that clearance, or start fresh for the current PR files?`
+   - `continue` — `Continue prior clearance (Recommended)` — keep the register (frozen `changedPaths`, fuses, joins).
+   - `fresh` — `Start fresh` — `Remove-PrClearanceActRegister`, then engage as new.
+   - Cancel / empty → stop. Do not enter the loop.
+7. `changedPaths = Get-PrClearancePrChangedPaths -RepoRoot -TargetRef` (PR `targetRefName`). If that throws: stop engage (do not enter the loop) unless **Continue** already left a register with frozen `changedPaths` — then keep that frozen list and skip rediscovery. Do not invent an empty allowlist. Do not continue without `-ChangedPaths`.
+8. `Read-PrClearanceActRegister` then `Set-PrClearanceChangedPaths` (once). Already-frozen register from **Continue** is a no-op. After **Start fresh**, this freezes the current PR file list. Do not recompute `origin/target...HEAD` in later batches — a later commit must not grow the allowlist.
 
 ### Loop
 
@@ -85,8 +90,8 @@ loop:
     # -FirstInteraction only on the first NextAction this invoke
     # -AfterPush only when Test-PrClearanceShouldKickAfterAct -CodeChanged
   firstInteraction = false
-  finalize_quiet → Clear-ReviewRequests then Human.finalize and stop
-  finalize_timeout / finalize_max_batches → Get-ReviewFindings; each Complete-ReviewFinding dismissed with Get-PrClearanceHardStopReply; Clear-ReviewRequests; then Human.finalize (quiet = false; notFixed = closed without a fix) and stop
+  finalize_quiet → Clear-ReviewRequests; Remove-PrClearanceActRegister; then Human.finalize and stop
+  finalize_timeout / finalize_max_batches → Get-ReviewFindings; each Complete-ReviewFinding dismissed with Get-PrClearanceHardStopReply; Clear-ReviewRequests; Remove-PrClearanceActRegister; then Human.finalize (quiet = false; notFixed = closed without a fix) and stop
   request_and_wait → Request-Review then Wait-ReviewFinished
   wait → Wait-ReviewFinished
   act → Act then increment batch count
@@ -100,7 +105,7 @@ Call `Get-PrClearancePolicyDecision -Finding -Register [-ChangedPaths]` first (f
 
 Product choice alone is not a reason to ask. Preference-only / flavour findings with no plausible security, exploitation, correctness, or bug risk are dismissed automatically. Valid findings with a bounded, low-risk fix pass to the specialist. Human is reserved for a concrete unresolved requirement, behaviour, compatibility, scope, or risk decision.
 
-Fuse rows live in `pr-clearance-policy.ps1`, not this command. The specialist may edit a file that was not on the first-findings list (or not in the original PR) when that edit is required for a `pass` — then `Get-GitCoreDiffHunks` on `HEAD~1...HEAD` and `Add-PrClearanceActRegisterJoin`. Later comments on a joined file must hit those Act hunks. Do not follow imports or clean surrounding style on the rest of that file.
+Fuse rows live in `pr-clearance-policy.ps1`, not this command. The specialist may edit a file that was not on the first-findings list when that edit is required for a `pass`. If that path is already in frozen `changedPaths`, promote it into `clearancePaths` (whole-file) via `Set-PrClearanceFindingPathSnapshot` or Join (Join promotes PR paths instead of tip-land). If the path was **not** on the PR, then `Get-GitCoreDiffHunks` on `HEAD~1...HEAD` and `Add-PrClearanceActRegisterJoin -RepoRoot -Paths <helper paths> -Sha tipSha -Hunks …` (living tip land only for true helpers). Later comments on a joined file must hit **current tip land**, not historical Act coordinates. Do not follow imports or clean surrounding style on the rest of that file.
 
 ### Human
 
@@ -141,14 +146,14 @@ After Human, attach `human = @{ choice; guidance }` on each issue (`choice` is F
 
 If the specialist returns `ask` again on the same issue, Human once more. New `guidance` replaces the previous. Fuses (repeat / amend cap) still apply so a bounce loop cannot run forever.
 
-**Finalize** after quiet or hard stop. Call `Clear-ReviewRequests -PullRequestId -WorkspaceRoot` first (Review port). Append `Get-PrClearanceReviewRequestClearNotes` to `reasons[]`. Warn on failure; do not skip the report. Chat the report `{ quiet, fixed[], notFixed[], reasons[], repeated[] }`, then `AskQuestion` `prompt`: `PR #<id> clearance finished.` One option: `done` — `Done`. No merge. No commit/push/create-PR options.
+**Finalize** after quiet or hard stop. Call `Clear-ReviewRequests -PullRequestId -WorkspaceRoot` first (Review port). Append `Get-PrClearanceReviewRequestClearNotes` to `reasons[]`. Warn on failure; do not skip the report. Then `Remove-PrClearanceActRegister -RepoRoot -PullRequestId` so the next `/pr-clearance` on this PR starts a fresh engage (new `changedPaths` freeze). Do not wait for Done to delete — the Ack click is not required. Chat the report `{ quiet, fixed[], notFixed[], reasons[], repeated[] }`, then `AskQuestion` `prompt`: `PR #<id> clearance finished.` One option: `done` — `Done`. No merge. No commit/push/create-PR options.
 
 ### Act (one batch, then loop)
 
 **Lifetime:** one specialist per Act. Serial one Path at a time on that specialist. Dispose the specialist at Act end. Next Act starts a new one. Do not run two specialists at once. Do not keep a specialist across Acts. The coordinator never implements product code.
 
 1. Reuse the `findings` list from this loop pass. Refresh with `Get-ReviewFindings` only after an operation that can change findings. `Read-PrClearanceActRegister` (create empty if missing).
-2. `Set-PrClearanceFindingPathSnapshot` on the first non-empty findings list (in-PR paths only). Later **reviews** cannot add files by commenting. Act may join a helper file the specialist changed and Vcs committed. Save the register.
+2. `Set-PrClearanceFindingPathSnapshot` on this Act's findings (in-PR paths only). First non-empty list freezes `clearancePaths`. Later Acts **promote** additional frozen-`changedPaths` files into `clearancePaths` when review comments on them. Act may join a helper the PR did not change (outside `changedPaths`) after Vcs commit. Save the register.
 3. Policy via `Get-PrClearancePolicyDecision` plus `pr-clearance-policy.md` using the **frozen** engage list (not a fresh git diff). Human interim only for Policy `ask` (one card per turn). If every remaining finding is dismiss: complete `dismissed`, save register, no specialist, no Vcs, no `-AfterPush`. Loop.
 4. Each Policy `dismiss`: `Complete-ReviewFinding -Disposition dismissed -Reply (Get-PrClearanceDismissedReply -Finding $finding -Reason $decision.reason)`. No specialist. No Vcs.
 5. Each Policy `already`: no specialist and no Vcs (still complete `fixed` in step 11).
@@ -156,7 +161,7 @@ If the specialist returns `ask` again on the same issue, Human once more. New `g
 7. Start **one** specialist for this Act (bound `specialist` tool) on the first `pass` group or the first Human `fix`. That specialist follows `codeant-silent-triage.md` (same flavour as `/codeant-triage`, no noisy AskQuestion loop): edit the file, then return. Do not spawn per Path. Coordinator never implements.
 8. For each group (**serial**, same specialist): the specialist returns via **one** `Invoke-PrClearanceSpecialist -Path $group.Path -Issues $group.Issues -PullRequestId -WorkspaceRoot -PreparedResults $rows` (or equivalent) with **all** issues on that Path. One call = Path + the full issues collection + prepared rows (one row per `Id`). A call **without** `-PreparedResults` is the validator stub (`ask` / `Awaiting specialist apply`) — it is not a finished Act. Expect **one** return whose `results` cover every input `Id`. Next Path only after this Path is finished (including Human bounces). First `pass` call: omit `human` or set it `$null`.
 9. For each result `ask`: Human explain — use `explain.*` if present, else finding + `reason`. Cards still Fix/Dismiss. After Human, attach `human = @{ choice; guidance }` (`guidance` = the human's own words; do not rewrite). **Fix** → same Act specialist, one `Invoke-PrClearanceSpecialist` with `-PreparedResults` after apply, every Fix-chosen issue on that Path, each carrying `human` (do not reload the roster if already loaded; specialist must honour `guidance`). **Dismiss** → Complete dismissed (prefer `guidance` in the reply); do not re-call. Same-issue `ask` again → Human again; fuses still cap the loop.
-10. Union `paths` from specialist returns (not the register file). If **product** paths changed: `New-GitCoreCommit -RepoRoot -Path <paths> -Message` then `Push-GitCore`. Paths may include a helper that was not in `changedPaths`. Never include the register file. Then `tipSha = Get-GitCoreHeadSha`. `Get-GitCoreDiffHunks -Range HEAD~1...HEAD` and `Add-PrClearanceActRegisterJoin` for paths not in `clearancePaths`. Skip commit when nothing changed.
+10. Union `paths` from specialist returns (not the register file). If **product** paths changed: `New-GitCoreCommit -RepoRoot -Path <paths> -Message` then `Push-GitCore`. Paths may include a helper that was not in `changedPaths`. Never include the register file. Then `tipSha = Get-GitCoreHeadSha`. `Get-GitCoreDiffHunks -Range HEAD~1...HEAD` and `Add-PrClearanceActRegisterJoin -RepoRoot -Paths <paths not in changedPaths> -Sha tipSha -Hunks …` (PR paths promote to clearance; only non-PR helpers get living tip land). Skip commit when nothing changed.
 11. `Add-PrClearanceActRegisterFix` for each `fixed`; `Add-PrClearanceActRegisterPathBatch` when product paths changed; `Save-PrClearanceActRegister`. Each specialist `fixed` / Policy `already`: `Complete-ReviewFinding -Disposition fixed -Reply (Get-PrClearanceSpecialistReply)` (Policy `already` with no specialist result: two-line everyday reply). A fixed public reply must combine `report.change` with `report.justification`, preserving the specialist result's finding-based reasoning without mentioning the specialist or workflow. Each specialist `dismissed`: Complete dismissed with `Get-PrClearanceSpecialistReply`; its two lines are `Issue` and `WontFix Reason`, never `Fix`. Pass NextAction `-AfterPush` only when `Test-PrClearanceShouldKickAfterAct -CodeChanged`.
 12. After Vcs + Complete for this findings snapshot, **dispose** the specialist. The next Act starts a new one.
 

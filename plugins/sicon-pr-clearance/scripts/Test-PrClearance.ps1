@@ -534,6 +534,20 @@ try {
     Save-PrClearanceActRegister -RepoRoot $regRoot -Register $reg
     Assert-True (Test-Path -LiteralPath $regPath -PathType Leaf) 'save writes the scratch file'
 
+    $removedPath = Remove-PrClearanceActRegister -RepoRoot $regRoot -PullRequestId 30128
+    Assert-Equal $regPath $removedPath 'remove targets the same register path'
+    Assert-True (-not (Test-Path -LiteralPath $regPath -PathType Leaf)) 'finalize remove deletes the scratch file'
+    Assert-True (-not (Test-PrClearanceActRegisterExists -RepoRoot $regRoot -PullRequestId 30128)) 'exists is false after remove'
+    $again = Remove-PrClearanceActRegister -RepoRoot $regRoot -PullRequestId 30128
+    Assert-equal $regPath $again 'remove is idempotent when the file is already gone'
+    $freshAfterRemove = Read-PrClearanceActRegister -RepoRoot $regRoot -PullRequestId 30128
+    Assert-True (-not [bool]$freshAfterRemove.changedPathsFrozen) 'read after remove starts an empty register'
+
+    $reg = Add-PrClearanceActRegisterFix -Register (New-PrClearanceActRegister -PullRequestId 30128) -Finding $a -Sha 'aaa111'
+    $reg = Add-PrClearanceActRegisterFix -Register $reg -Finding $b -Sha 'bbb222'
+    Save-PrClearanceActRegister -RepoRoot $regRoot -Register $reg
+    Assert-True (Test-PrClearanceActRegisterExists -RepoRoot $regRoot -PullRequestId 30128) 'exists is true when the scratch file is present'
+
     $reloaded = Read-PrClearanceActRegister -RepoRoot $regRoot -PullRequestId 30128
     $third = [pscustomobject]@{
         Id = 'thread-new'; Number = 3; Path = 'contrib/foo.ps1'; Line = '44'
@@ -588,7 +602,7 @@ try {
     Assert-Equal 'dismiss' (Get-PrClearancePolicyOverride -Register $amendReg -Finding $amendFinding) 'fifth amend caps that file for this clearance'
     Assert-Equal $null (Get-PrClearancePolicyOverride -Register $amendReg -Finding $otherFinding) 'other file is not capped by Widget amends'
 
-    $prPaths = @('contrib/foo.ps1', 'contrib/bar.ps1')
+    $prPaths = @('contrib/foo.ps1', 'contrib/bar.ps1', 'contrib/baz.ps1', 'contrib/qux.ps1')
     $onPr = [pscustomobject]@{
         Id = 'p1'; Number = 1; Path = '/contrib/Foo.ps1'; Line = '3'
         Comment = '**Suggestion:** narrow hole'
@@ -627,12 +641,38 @@ try {
     Assert-Equal $null (Get-PrClearancePolicyOverride -Register $snap -Finding $farOnFirst -ChangedPaths $prPaths) 'first-findings file stays whole-file'
     Assert-Equal 'dismiss' (Get-PrClearancePolicyOverride -Register $snap -Finding $laterNewFile -ChangedPaths @($prPaths + 'contrib/pr-clearance-lib.ps1')) 'later-batch file is dismissed even if git change-set grew'
 
-    $joined = Add-PrClearanceActRegisterJoin -Register $snap -Paths @('legacy/Helper.cs') -Sha 'abc' -Batch 1 -Hunks @(
+    $laterPrFile = [pscustomobject]@{
+        Id = 'late-pr'; Number = 15; Path = 'contrib/baz.ps1'; Line = '7'
+        Comment = '**Suggestion:** comment on another PR file after freeze'
+    }
+    Assert-Equal 'dismiss' (Get-PrClearancePolicyOverride -Register $snap -Finding $laterPrFile -ChangedPaths $prPaths) 'PR file outside first clearance batch is dismissed until promoted'
+    $snap = Set-PrClearanceFindingPathSnapshot -Register $snap -Findings @($laterPrFile) -ChangedPaths $prPaths
+    Assert-True (@($snap.clearancePaths) -contains (Get-PrClearanceNormalizedPath -Path 'contrib/baz.ps1')) 'late finding on a changedPaths file promotes into clearancePaths'
+    Assert-True (-not (@($snap.clearancePaths) -contains (Get-PrClearanceNormalizedPath -Path 'contrib/qux.ps1'))) 'unchanged PR files stay out of clearancePaths until needed'
+    Assert-Equal $null (Get-PrClearancePolicyOverride -Register $snap -Finding $laterPrFile -ChangedPaths $prPaths) 'promoted PR file is whole-file clearance'
+
+    $joined = Add-PrClearanceActRegisterJoin -Register $snap -Paths @('legacy/Helper.cs', 'contrib/qux.ps1') -Sha 'abc' -Batch 1 -Hunks @(
         [pscustomobject]@{
             path   = 'legacy/Helper.cs'
             ranges = @([pscustomobject]@{ start = 20; end = 35 })
         }
+        [pscustomobject]@{
+            path   = 'contrib/qux.ps1'
+            ranges = @([pscustomobject]@{ start = 1; end = 3 })
+        }
+        [pscustomobject]@{
+            path   = 'legacy/ExtraHelper.cs'
+            ranges = @([pscustomobject]@{ start = 10; end = 12 })
+        }
     )
+    Assert-True (@($joined.clearancePaths) -contains (Get-PrClearanceNormalizedPath -Path 'contrib/qux.ps1')) 'Join promotes a changedPaths file into clearancePaths'
+    Assert-True (-not (Test-PrClearanceFindingInJoinedPaths -Register $joined -Path 'contrib/qux.ps1')) 'changedPaths file is not joined tip land'
+    Assert-True (Test-PrClearanceFindingInJoinedPaths -Register $joined -Path 'legacy/ExtraHelper.cs') 'non-PR helper from hunks still joins'
+    $quxFinding = [pscustomobject]@{
+        Id = 'qux-far'; Number = 16; Path = 'contrib/qux.ps1'; Line = '400'
+        Comment = '**Suggestion:** any line after join-promote'
+    }
+    Assert-Equal $null (Get-PrClearancePolicyOverride -Register $joined -Finding $quxFinding -ChangedPaths $prPaths) 'join-promoted PR file is whole-file'
     $onHunk = [pscustomobject]@{
         Id = 'join-in'; Number = 12; Path = 'legacy/Helper.cs'; Line = '22:24'
         Comment = '**Suggestion:** the extracted helper'
@@ -648,9 +688,67 @@ try {
     Assert-True (Test-PrClearanceFindingInJoinedPaths -Register $joined -Path 'legacy/Helper.cs') 'Act helper is joined'
     Assert-Equal $null (Get-PrClearancePolicyOverride -Register $joined -Finding $onHunk -ChangedPaths $prPaths) 'joined helper line in Act hunks stays in scope'
     Assert-Equal 'dismiss' (Get-PrClearancePolicyOverride -Register $joined -Finding $offHunk -ChangedPaths $prPaths) 'joined helper line outside Act hunks is dismissed'
-    Assert-Equal $null (Get-PrClearancePolicyOverride -Register $joined -Finding $fileLevel -ChangedPaths $prPaths) 'file-level comment on a joined helper stays in scope'
+    Assert-equal $null (Get-PrClearancePolicyOverride -Register $joined -Finding $fileLevel -ChangedPaths $prPaths) 'file-level comment on a joined helper stays in scope'
+
+    # Living tip land: later Act that prepends lines remaps prior joined ranges.
+    $driftRepo = Join-Path ([IO.Path]::GetTempPath()) ('pr-clearance-drift-' + [guid]::NewGuid().ToString('n'))
+    New-Item -ItemType Directory -Force -Path $driftRepo | Out-Null
+    $driftCfg = Join-Path $driftRepo 'empty.gitconfig'
+    New-Item -ItemType File -Force -Path $driftCfg | Out-Null
+    $prevGlobal = $env:GIT_CONFIG_GLOBAL
+    $prevNosys = $env:GIT_CONFIG_NOSYSTEM
+    try {
+        $env:GIT_CONFIG_GLOBAL = $driftCfg
+        $env:GIT_CONFIG_NOSYSTEM = '1'
+        & git -C $driftRepo init | Out-Null
+        & git -C $driftRepo symbolic-ref HEAD refs/heads/main
+        & git -C $driftRepo config user.email 'pr-clearance-drift@example.com'
+        & git -C $driftRepo config user.name 'pr-clearance-drift'
+        & git -C $driftRepo config commit.gpgsign false
+        $helperPath = Join-Path $driftRepo 'legacy\Helper.cs'
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $helperPath) | Out-Null
+        $seed = 1..40 | ForEach-Object { "line$_" }
+        [IO.File]::WriteAllLines($helperPath, [string[]]$seed)
+        New-GitCoreCommit -RepoRoot $driftRepo -Message 'drift: seed' -Path @('legacy/Helper.cs')
+        $edited = @($seed)
+        for ($i = 19; $i -le 34; $i++) { $edited[$i] = "changed$($i + 1)" }
+        [IO.File]::WriteAllLines($helperPath, [string[]]$edited)
+        New-GitCoreCommit -RepoRoot $driftRepo -Message 'drift: first act' -Path @('legacy/Helper.cs')
+        $shaA = Get-GitCoreHeadSha -RepoRoot $driftRepo
+        $hunksA = @(Get-GitCoreDiffHunks -RepoRoot $driftRepo -Range 'HEAD~1...HEAD')
+        $driftReg = Read-PrClearanceActRegister -RepoRoot $regRoot -PullRequestId 99
+        $driftReg = Set-PrClearanceChangedPaths -Register $driftReg -ChangedPaths $prPaths
+        $driftReg = Set-PrClearanceFindingPathSnapshot -Register $driftReg -Findings $firstBatch -ChangedPaths $prPaths
+        $driftReg = Add-PrClearanceActRegisterJoin -Register $driftReg -RepoRoot $driftRepo -Paths @('legacy/Helper.cs') -Sha $shaA -Batch 1 -Hunks $hunksA
+        Assert-True (@($driftReg.joinedHunks).Count -ge 1) 'first join stores living tip land'
+        Assert-Equal $shaA $driftReg.joinedTipSha 'joinedTipSha tracks first Act tip'
+
+        $prepend = 1..20 | ForEach-Object { "pad$_" }
+        [IO.File]::WriteAllLines($helperPath, [string[]]($prepend + $edited))
+        New-GitCoreCommit -RepoRoot $driftRepo -Message 'drift: prepend' -Path @('legacy/Helper.cs')
+        $shaB = Get-GitCoreHeadSha -RepoRoot $driftRepo
+        $hunksB = @(Get-GitCoreDiffHunks -RepoRoot $driftRepo -Range 'HEAD~1...HEAD')
+        $driftReg = Add-PrClearanceActRegisterJoin -Register $driftReg -RepoRoot $driftRepo -Paths @('legacy/Helper.cs') -Sha $shaB -Batch 2 -Hunks $hunksB
+        Assert-Equal $shaB $driftReg.joinedTipSha 'joinedTipSha advances on second Act'
+        $movedOn = [pscustomobject]@{
+            Id = 'drift-on'; Number = 50; Path = 'legacy/Helper.cs'; Line = '45'
+            Comment = '**Suggestion:** follow-up on moved helper land'
+        }
+        $staleOff = [pscustomobject]@{
+            Id = 'drift-off'; Number = 51; Path = 'legacy/Helper.cs'; Line = '22'
+            Comment = '**Suggestion:** old absolute line after drift'
+        }
+        Assert-Equal $null (Get-PrClearancePolicyOverride -Register $driftReg -Finding $movedOn -ChangedPaths $prPaths) 'remapped tip land keeps moved follow-up in scope'
+        Assert-equal 'dismiss' (Get-PrClearancePolicyOverride -Register $driftReg -Finding $staleOff -ChangedPaths $prPaths) 'stale pre-drift line is out of tip land'
+    }
+    finally {
+        if ($null -ne $prevGlobal) { $env:GIT_CONFIG_GLOBAL = $prevGlobal } else { Remove-Item Env:GIT_CONFIG_GLOBAL -ErrorAction SilentlyContinue }
+        if ($null -ne $prevNosys) { $env:GIT_CONFIG_NOSYSTEM = $prevNosys } else { Remove-Item Env:GIT_CONFIG_NOSYSTEM -ErrorAction SilentlyContinue }
+        Remove-Item -LiteralPath $driftRepo -Recurse -Force -ErrorAction SilentlyContinue
+    }
+
     $snapAgain = Set-PrClearanceFindingPathSnapshot -Register $snap -Findings @($laterNewFile) -ChangedPaths @($prPaths + 'contrib/pr-clearance-lib.ps1')
-    Assert-True (-not (@($snapAgain.clearancePaths) -contains (Get-PrClearanceNormalizedPath -Path 'contrib/pr-clearance-lib.ps1'))) 'snapshot does not grow after it is frozen'
+    Assert-True (-not (@($snapAgain.clearancePaths) -contains (Get-PrClearanceNormalizedPath -Path 'contrib/pr-clearance-lib.ps1'))) 'out-of-PR findings do not grow clearancePaths after freeze'
 
     $fpCap = Read-PrClearanceActRegister -RepoRoot $regRoot -PullRequestId 46
     foreach ($n in 1..40) {

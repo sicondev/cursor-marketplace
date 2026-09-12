@@ -1,4 +1,4 @@
-<!-- contrib-managed: pr-clearance@0.2.2 — source: ai-devtools/contrib/pr-clearance/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: pr-clearance@0.3.3 — source: ai-devtools/contrib/pr-clearance/ — prefer PR there; local edits may be overwritten on sync -->
 
 # PR clearance Policy (agent)
 
@@ -6,7 +6,7 @@ Load scripts from the resolved `scripts/` folder (`pr-clearance-lib.ps1`, `pr-cl
 
 For each finding:
 
-1. `decision = Get-PrClearancePolicyDecision -Finding -Register [-ChangedPaths]` (frozen engage list, not a fresh git diff).
+1. `decision = Get-PrClearancePolicyDecision -Finding -Register [-ChangedPaths]` (frozen engage list; later PR-file findings promote into clearance whole-file scope; living tip land only for joined helpers outside the PR).
 2. If `decision.action` is `dismiss` → complete dismissed with `decision.reason`. No implement. No ask.
 3. If `continue`: read `Comment` plus current code at `Path` / `Line`. Resolve with `Resolve-PrClearanceFindingPath` under the repo root only. Reject absolute paths and `..`. No catalog read.
 4. Return `{ action: pass | ask | already, reason }`.

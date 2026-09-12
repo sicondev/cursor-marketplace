@@ -782,13 +782,63 @@ function Get-PrClearanceNextAction {
     }
 }
 
-function Get-PrClearanceNormalizedPath {
+function Get-PrClearanceGitPathLiteral {
     param($Path)
-    $p = ([string]$Path).Trim().Replace('\', '/')
-    while ($p.StartsWith('/')) {
+    $p = ([string]$Path).Trim()
+    while ($p.StartsWith('/') -or $p.StartsWith('\')) {
         $p = $p.Substring(1)
     }
-    return $p.ToLowerInvariant()
+    # git diff may C-quote paths; decode before slash normalize so octal escapes survive.
+    if ($p.Length -ge 2 -and $p.StartsWith('"') -and $p.EndsWith('"')) {
+        $inner = $p.Substring(1, $p.Length - 2)
+        $byteBuf = New-Object 'System.Collections.Generic.List[byte]'
+        $out = New-Object 'System.Text.StringBuilder'
+        $i = 0
+        while ($i -lt $inner.Length) {
+            $ch = $inner[$i]
+            if ($ch -eq '\' -and ($i + 1) -lt $inner.Length) {
+                $n = $inner[$i + 1]
+                if (
+                    ($n -ge '0') -and ($n -le '7') -and
+                    ($i + 3) -lt $inner.Length -and
+                    ($inner[$i + 2] -ge '0') -and ($inner[$i + 2] -le '7') -and
+                    ($inner[$i + 3] -ge '0') -and ($inner[$i + 3] -le '7')
+                ) {
+                    [void]$byteBuf.Add([Convert]::ToByte($inner.Substring($i + 1, 3), 8))
+                    $i += 4
+                    continue
+                }
+                if ($byteBuf.Count -gt 0) {
+                    [void]$out.Append([Text.Encoding]::UTF8.GetString($byteBuf.ToArray()))
+                    $byteBuf.Clear()
+                }
+                if ($n -eq '"') { [void]$out.Append('"') }
+                elseif ($n -eq '\') { [void]$out.Append('\') }
+                elseif ($n -eq 'n') { [void]$out.Append([char]10) }
+                elseif ($n -eq 't') { [void]$out.Append([char]9) }
+                elseif ($n -eq 'r') { [void]$out.Append([char]13) }
+                else { [void]$out.Append($n) }
+                $i += 2
+                continue
+            }
+            if ($byteBuf.Count -gt 0) {
+                [void]$out.Append([Text.Encoding]::UTF8.GetString($byteBuf.ToArray()))
+                $byteBuf.Clear()
+            }
+            [void]$out.Append($ch)
+            $i++
+        }
+        if ($byteBuf.Count -gt 0) {
+            [void]$out.Append([Text.Encoding]::UTF8.GetString($byteBuf.ToArray()))
+        }
+        $p = $out.ToString()
+    }
+    return $p.Replace('\', '/')
+}
+
+function Get-PrClearanceNormalizedPath {
+    param($Path)
+    return (Get-PrClearanceGitPathLiteral -Path $Path).ToLowerInvariant()
 }
 
 function Group-PrClearancePassFindingsByPath {
@@ -927,7 +977,8 @@ function New-PrClearanceActRegister {
         clearancePaths         = @()
         clearancePathsFrozen   = $false
         joinedPaths            = @()
-        hunkBatches            = @()
+        joinedTipSha           = ''
+        joinedHunks            = @()
     }
 }
 
@@ -976,9 +1027,13 @@ function Read-PrClearanceActRegister {
     if ($obj.PSObject.Properties.Name -contains 'joinedPaths' -and $null -ne $obj.joinedPaths) {
         $joined = @($obj.joinedPaths)
     }
-    $hunks = @()
-    if ($obj.PSObject.Properties.Name -contains 'hunkBatches' -and $null -ne $obj.hunkBatches) {
-        $hunks = @($obj.hunkBatches)
+    $joinedTip = ''
+    if ($obj.PSObject.Properties.Name -contains 'joinedTipSha' -and $null -ne $obj.joinedTipSha) {
+        $joinedTip = [string]$obj.joinedTipSha
+    }
+    $joinedHunks = @()
+    if ($obj.PSObject.Properties.Name -contains 'joinedHunks' -and $null -ne $obj.joinedHunks) {
+        $joinedHunks = @($obj.joinedHunks)
     }
     return [pscustomobject]@{
         schemaVersion        = 1
@@ -990,7 +1045,8 @@ function Read-PrClearanceActRegister {
         clearancePaths       = $clearance
         clearancePathsFrozen = $clearanceFrozen
         joinedPaths          = $joined
-        hunkBatches          = $hunks
+        joinedTipSha         = $joinedTip
+        joinedHunks          = $joinedHunks
     }
 }
 
@@ -1007,9 +1063,50 @@ function Save-PrClearanceActRegister {
     if (-not (Test-Path -LiteralPath $dir -PathType Container)) {
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
     }
+    # Persist schema fields only — skip in-memory caches such as changedPathsSet.
+    $toSave = [pscustomobject]@{
+        schemaVersion        = 1
+        pullRequestId        = [int]$Register.pullRequestId
+        fingerprints         = @($Register.fingerprints)
+        pathBatches          = @($Register.pathBatches)
+        changedPaths         = @($Register.changedPaths)
+        changedPathsFrozen   = [bool]$Register.changedPathsFrozen
+        clearancePaths       = @($Register.clearancePaths)
+        clearancePathsFrozen = [bool]$Register.clearancePathsFrozen
+        joinedPaths          = @($Register.joinedPaths)
+        joinedTipSha         = [string]$Register.joinedTipSha
+        joinedHunks          = @($Register.joinedHunks)
+    }
     $tmp = "$path.tmp"
-    ($Register | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath $tmp -Encoding UTF8
+    ($toSave | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath $tmp -Encoding UTF8
     Move-Item -LiteralPath $tmp -Destination $path -Force
+}
+
+function Remove-PrClearanceActRegister {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId
+    )
+    $path = Get-PrClearanceActRegisterPath -RepoRoot $RepoRoot -PullRequestId $PullRequestId
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        Remove-Item -LiteralPath $path -Force
+    }
+    return $path
+}
+
+function Test-PrClearanceActRegisterExists {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot,
+
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId
+    )
+    $path = Get-PrClearanceActRegisterPath -RepoRoot $RepoRoot -PullRequestId $PullRequestId
+    return (Test-Path -LiteralPath $path -PathType Leaf)
 }
 
 function Get-PrClearanceUniqueNormalizedPaths {
@@ -1028,6 +1125,29 @@ function Get-PrClearanceUniqueNormalizedPaths {
     return $ordered.ToArray()
 }
 
+function Get-PrClearanceChangedPathsSet {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Register
+    )
+    if (-not [bool]$Register.changedPathsFrozen) {
+        return $null
+    }
+    $existing = $Register.PSObject.Properties['changedPathsSet']
+    if ($null -ne $existing -and $null -ne $existing.Value) {
+        return $existing.Value
+    }
+    $set = New-Object 'System.Collections.Generic.HashSet[string]'
+    foreach ($p in @($Register.changedPaths)) {
+        $n = Get-PrClearanceNormalizedPath -Path $p
+        if (-not [string]::IsNullOrWhiteSpace($n)) {
+            [void]$set.Add($n)
+        }
+    }
+    Add-Member -InputObject $Register -MemberType NoteProperty -Name 'changedPathsSet' -Value $set -Force
+    return $set
+}
+
 function Set-PrClearanceChangedPaths {
     param(
         [Parameter(Mandatory = $true)]
@@ -1036,6 +1156,7 @@ function Set-PrClearanceChangedPaths {
         [string[]]$ChangedPaths = @()
     )
     if ([bool]$Register.changedPathsFrozen) {
+        [void](Get-PrClearanceChangedPathsSet -Register $Register)
         return $Register
     }
     $unique = @(Get-PrClearanceUniqueNormalizedPaths -Paths $ChangedPaths)
@@ -1044,6 +1165,7 @@ function Set-PrClearanceChangedPaths {
     }
     $Register.changedPaths = $unique
     $Register.changedPathsFrozen = $true
+    [void](Get-PrClearanceChangedPathsSet -Register $Register)
     return $Register
 }
 
@@ -1056,13 +1178,17 @@ function Set-PrClearanceFindingPathSnapshot {
 
         [string[]]$ChangedPaths
     )
-    if ([bool]$Register.clearancePathsFrozen) {
-        return $Register
-    }
     $list = @($Findings)
     if ($list.Count -eq 0) {
         return $Register
     }
+
+    # After the first freeze: late-promote findings whose path is already on the
+    # engage PR change set into whole-file clearance. Never grow beyond changedPaths.
+    if ([bool]$Register.clearancePathsFrozen) {
+        return (Add-PrClearanceClearancePathsFromFindings -Register $Register -Findings $list)
+    }
+
     $scope = $null
     if ($PSBoundParameters.ContainsKey('ChangedPaths') -and $null -ne $ChangedPaths) {
         $scope = @($ChangedPaths)
@@ -1087,6 +1213,74 @@ function Set-PrClearanceFindingPathSnapshot {
     if (@($Register.clearancePaths).Count -eq 0) {
         return $Register
     }
+    $Register.clearancePathsFrozen = $true
+    return $Register
+}
+
+function Test-PrClearancePathInChangedPaths {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Register,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+    $set = Get-PrClearanceChangedPathsSet -Register $Register
+    if ($null -eq $set) {
+        return $false
+    }
+    $norm = Get-PrClearanceNormalizedPath -Path $Path
+    if ([string]::IsNullOrWhiteSpace($norm)) {
+        return $false
+    }
+    return $set.Contains($norm)
+}
+
+function Add-PrClearanceClearancePathsFromFindings {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Register,
+
+        $Findings
+    )
+    if (-not [bool]$Register.changedPathsFrozen) {
+        return $Register
+    }
+    $extra = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($f in @($Findings)) {
+        $path = [string]$f.Path
+        if (-not (Test-PrClearancePathInChangedPaths -Register $Register -Path $path)) {
+            continue
+        }
+        $n = Get-PrClearanceNormalizedPath -Path $path
+        if (-not [string]::IsNullOrWhiteSpace($n)) {
+            [void]$extra.Add($n)
+        }
+    }
+    if ($extra.Count -eq 0) {
+        return $Register
+    }
+    $Register.clearancePaths = @(Get-PrClearanceUniqueNormalizedPaths -Paths (@($Register.clearancePaths) + @($extra.ToArray())))
+    $Register.clearancePathsFrozen = $true
+    return $Register
+}
+
+function Add-PrClearanceClearancePath {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Register,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+    if (-not (Test-PrClearancePathInChangedPaths -Register $Register -Path $Path)) {
+        return $Register
+    }
+    $n = Get-PrClearanceNormalizedPath -Path $Path
+    if ([string]::IsNullOrWhiteSpace($n)) {
+        return $Register
+    }
+    $Register.clearancePaths = @(Get-PrClearanceUniqueNormalizedPaths -Paths (@($Register.clearancePaths) + @($n)))
     $Register.clearancePathsFrozen = $true
     return $Register
 }
@@ -1293,20 +1487,55 @@ function Get-PrClearanceRegisterHunkRanges {
     )
     $norm = Get-PrClearanceNormalizedPath -Path $Path
     $ranges = New-Object 'System.Collections.Generic.List[object]'
-    foreach ($batch in @($Register.hunkBatches)) {
-        foreach ($hunk in @($batch.hunks)) {
-            if ((Get-PrClearanceNormalizedPath -Path ([string]$hunk.path)) -ne $norm) {
-                continue
-            }
-            foreach ($r in @($hunk.ranges)) {
-                [void]$ranges.Add([pscustomobject]@{
-                        start = [int]$r.start
-                        end   = [int]$r.end
-                    })
-            }
+    foreach ($hunk in @($Register.joinedHunks)) {
+        if ((Get-PrClearanceNormalizedPath -Path ([string]$hunk.path)) -ne $norm) {
+            continue
+        }
+        foreach ($r in @($hunk.ranges)) {
+            [void]$ranges.Add([pscustomobject]@{
+                    start = [int]$r.start
+                    end   = [int]$r.end
+                })
         }
     }
     return $ranges.ToArray()
+}
+
+function Merge-PrClearanceLineRanges {
+    param($Ranges)
+    $items = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($r in @($Ranges)) {
+        $start = [int]$r.start
+        $end = [int]$r.end
+        if ($end -lt $start) {
+            $tmp = $start
+            $start = $end
+            $end = $tmp
+        }
+        [void]$items.Add([pscustomobject]@{ start = $start; end = $end })
+    }
+    if ($items.Count -eq 0) {
+        return @()
+    }
+    $sorted = @($items.ToArray() | Sort-Object -Property start, end)
+    $merged = New-Object 'System.Collections.Generic.List[object]'
+    $curStart = [int]$sorted[0].start
+    $curEnd = [int]$sorted[0].end
+    for ($i = 1; $i -lt $sorted.Count; $i++) {
+        $s = [int]$sorted[$i].start
+        $e = [int]$sorted[$i].end
+        if ($s -le ($curEnd + 1)) {
+            if ($e -gt $curEnd) {
+                $curEnd = $e
+            }
+            continue
+        }
+        [void]$merged.Add([pscustomobject]@{ start = $curStart; end = $curEnd })
+        $curStart = $s
+        $curEnd = $e
+    }
+    [void]$merged.Add([pscustomobject]@{ start = $curStart; end = $curEnd })
+    return $merged.ToArray()
 }
 
 function Add-PrClearanceActRegisterJoin {
@@ -1320,7 +1549,9 @@ function Add-PrClearanceActRegisterJoin {
 
         [string]$Sha = '',
 
-        [int]$Batch = 0
+        [int]$Batch = 0,
+
+        [string]$RepoRoot = ''
     )
     $toJoin = New-Object 'System.Collections.Generic.List[string]'
     foreach ($p in @($Paths)) {
@@ -1331,42 +1562,127 @@ function Add-PrClearanceActRegisterJoin {
         if (Test-PrClearanceFindingInClearanceSnapshot -Register $Register -Path $n) {
             continue
         }
+        # PR change-set files get whole-file clearance, not joined tip land.
+        if (Test-PrClearancePathInChangedPaths -Register $Register -Path $n) {
+            $Register = Add-PrClearanceClearancePath -Register $Register -Path $n
+            continue
+        }
         if (-not (Test-PrClearanceFindingInJoinedPaths -Register $Register -Path $n)) {
             [void]$toJoin.Add($n)
         }
     }
-    if ($toJoin.Count -gt 0) {
-        $Register.joinedPaths = @(Get-PrClearanceUniqueNormalizedPaths -Paths (@($Register.joinedPaths) + @($toJoin.ToArray())))
-    }
 
-    $normHunks = New-Object 'System.Collections.Generic.List[object]'
+    $newByPath = @{}
+    $pathDisplay = @{}
     foreach ($h in @($Hunks)) {
-        $path = Get-PrClearanceNormalizedPath -Path ([string]$h.path)
+        $rawPath = [string]$h.path
+        $path = Get-PrClearanceNormalizedPath -Path $rawPath
         if ([string]::IsNullOrWhiteSpace($path)) {
             continue
         }
         if (Test-PrClearanceFindingInClearanceSnapshot -Register $Register -Path $path) {
             continue
         }
-        $ranges = New-Object 'System.Collections.Generic.List[object]'
+        if (Test-PrClearancePathInChangedPaths -Register $Register -Path $path) {
+            $Register = Add-PrClearanceClearancePath -Register $Register -Path $path
+            continue
+        }
+        if (-not (Test-PrClearanceFindingInJoinedPaths -Register $Register -Path $path) -and -not ($toJoin.Contains($path))) {
+            [void]$toJoin.Add($path)
+        }
+        if (-not ($pathDisplay.Keys -contains $path)) {
+            $pathDisplay[$path] = (Get-PrClearanceGitPathLiteral -Path $rawPath)
+        }
+        if (-not ($newByPath.Keys -contains $path)) {
+            $newByPath[$path] = New-Object 'System.Collections.Generic.List[object]'
+        }
         foreach ($r in @($h.ranges)) {
-            [void]$ranges.Add([pscustomobject]@{
+            [void]$newByPath[$path].Add([pscustomobject]@{
                     start = [int]$r.start
                     end   = [int]$r.end
                 })
         }
-        [void]$normHunks.Add([pscustomobject]@{
-                path   = $path
-                ranges = @($ranges.ToArray())
+    }
+
+    $priorByPath = @{}
+    foreach ($hunk in @($Register.joinedHunks)) {
+        $rawPath = [string]$hunk.path
+        $path = Get-PrClearanceNormalizedPath -Path $rawPath
+        if ([string]::IsNullOrWhiteSpace($path)) {
+            continue
+        }
+        if (-not ($pathDisplay.Keys -contains $path)) {
+            $pathDisplay[$path] = (Get-PrClearanceGitPathLiteral -Path $rawPath)
+        }
+        if (-not ($priorByPath.Keys -contains $path)) {
+            $priorByPath[$path] = New-Object 'System.Collections.Generic.List[object]'
+        }
+        foreach ($r in @($hunk.ranges)) {
+            [void]$priorByPath[$path].Add([pscustomobject]@{
+                    start = [int]$r.start
+                    end   = [int]$r.end
+                })
+        }
+    }
+
+    $allPaths = @(@($priorByPath.Keys) + @($newByPath.Keys) | Select-Object -Unique)
+
+    $prevTip = ''
+    if ($Register.PSObject.Properties.Name -contains 'joinedTipSha' -and $null -ne $Register.joinedTipSha) {
+        $prevTip = [string]$Register.joinedTipSha
+    }
+    $needRemap = (-not [string]::IsNullOrWhiteSpace($prevTip)) -and (-not [string]::IsNullOrWhiteSpace($Sha)) -and ($prevTip -ne $Sha)
+    if ($needRemap -and [string]::IsNullOrWhiteSpace($RepoRoot)) {
+        throw 'RepoRoot is required to remap joined tip land to a new Sha.'
+    }
+
+    $nextHunks = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($path in $allPaths) {
+        $key = [string]$path
+        $gitPath = $key
+        if (($pathDisplay.Keys -contains $key) -and -not [string]::IsNullOrWhiteSpace([string]$pathDisplay[$key])) {
+            $gitPath = [string]$pathDisplay[$key]
+        }
+        $remapped = @()
+        $priorRanges = @()
+        if ($priorByPath.Keys -contains $key) {
+            $priorRanges = @($priorByPath[$key].ToArray())
+        }
+        if ($priorRanges.Count -gt 0) {
+            if ($needRemap) {
+                $remapped = @(Move-GitCoreLineRanges -RepoRoot $RepoRoot -Path $gitPath -FromRef $prevTip -ToRef $Sha -Ranges $priorRanges)
+            }
+            else {
+                $remapped = $priorRanges
+            }
+        }
+        $added = @()
+        if ($newByPath.Keys -contains $key) {
+            $added = @($newByPath[$key].ToArray())
+        }
+        $merged = @(Merge-PrClearanceLineRanges -Ranges (@($remapped) + @($added)))
+        if ($merged.Count -eq 0) {
+            continue
+        }
+        [void]$nextHunks.Add([pscustomobject]@{
+                path   = $gitPath
+                ranges = $merged
             })
     }
-    $Register.hunkBatches = @($Register.hunkBatches) + [pscustomobject]@{
-        batch = $Batch
-        sha   = $Sha
-        hunks = @($normHunks.ToArray())
+
+    # Membership tracks paths that still have living land after remap/union.
+    # Defer the write until remap succeeds so a throw cannot leave stale joinedPaths.
+    $landPaths = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($h in @($nextHunks.ToArray())) {
+        $n = Get-PrClearanceNormalizedPath -Path ([string]$h.path)
+        if (-not [string]::IsNullOrWhiteSpace($n)) {
+            [void]$landPaths.Add($n)
+        }
     }
-    if (@($Register.hunkBatches).Count -gt $script:PrClearanceMaxActBatches) {
-        $Register.hunkBatches = @($Register.hunkBatches | Select-Object -Last $script:PrClearanceMaxActBatches)
+    $Register.joinedPaths = @(Get-PrClearanceUniqueNormalizedPaths -Paths @($landPaths.ToArray()))
+    $Register.joinedHunks = @($nextHunks.ToArray())
+    if (-not [string]::IsNullOrWhiteSpace($Sha)) {
+        $Register.joinedTipSha = $Sha
     }
     return $Register
 }
