@@ -183,6 +183,47 @@ try {
         $badRangeThrew = $true
     }
     Assert-True $badRangeThrew 'Get-GitCoreDiffHunks throws when git diff fails'
+
+    $mapFile = Join-Path $repo 'map.txt'
+    $seedLines = 1..35 | ForEach-Object { "L$_" }
+    [IO.File]::WriteAllLines($mapFile, [string[]]$seedLines)
+    New-GitCoreCommit -RepoRoot $repo -Message 'git-core: map seed' -Path @('map.txt')
+    $mapShaA = Get-GitCoreHeadSha -RepoRoot $repo
+    $prepend = 1..20 | ForEach-Object { "P$_" }
+    [IO.File]::WriteAllLines($mapFile, [string[]]($prepend + $seedLines))
+    New-GitCoreCommit -RepoRoot $repo -Message 'git-core: map prepend' -Path @('map.txt')
+    $mapShaB = Get-GitCoreHeadSha -RepoRoot $repo
+    $shifted = @(Move-GitCoreLineRanges -RepoRoot $repo -Path 'map.txt' -FromRef $mapShaA -ToRef $mapShaB -Ranges @(
+            [pscustomobject]@{ start = 20; end = 35 }
+        ))
+    Assert-True ($shifted.Count -eq 1) 'prepend keeps one mapped range'
+    Assert-True ([int]$shifted[0].start -eq 40) 'prepend shifts start by +20'
+    Assert-True ([int]$shifted[0].end -eq 55) 'prepend shifts end by +20'
+
+    [IO.File]::WriteAllLines($mapFile, [string[]]@('only', 'kept'))
+    New-GitCoreCommit -RepoRoot $repo -Message 'git-core: map wipe' -Path @('map.txt')
+    $mapShaC = Get-GitCoreHeadSha -RepoRoot $repo
+    $gone = @(Move-GitCoreLineRanges -RepoRoot $repo -Path 'map.txt' -FromRef $mapShaB -ToRef $mapShaC -Ranges @(
+            [pscustomobject]@{ start = 40; end = 55 }
+        ))
+    Assert-True ($gone.Count -eq 0) 'deleted land drops mapped ranges'
+
+    # Single-pass remap semantics (synthetic hunks; no extra commits)
+    $deleteMid = @(
+        [pscustomobject]@{ oldStart = 5; oldCount = 2; newStart = 5; newCount = 0 }
+    )
+    $split = @(Convert-GitCoreLineRangeThroughHunks -Start 3 -End 10 -HunkHeaders $deleteMid)
+    Assert-True ($split.Count -eq 2) 'mid delete yields two coalesced runs'
+    Assert-True (([int]$split[0].start -eq 3) -and ([int]$split[0].end -eq 4)) 'prefix before mid delete'
+    Assert-True (([int]$split[1].start -eq 5) -and ([int]$split[1].end -eq 8)) 'suffix after mid delete shifts by -2'
+    $fullyGone = @(Convert-GitCoreLineRangeThroughHunks -Start 5 -End 6 -HunkHeaders $deleteMid)
+    Assert-True ($fullyGone.Count -eq 0) 'range wholly inside delete yields nothing'
+    $insertBefore = @(
+        [pscustomobject]@{ oldStart = 0; oldCount = 0; newStart = 1; newCount = 3 }
+    )
+    $preShift = @(Convert-GitCoreLineRangeThroughHunks -Start 1 -End 2 -HunkHeaders $insertBefore)
+    Assert-True ($preShift.Count -eq 1) 'pure insert keeps one run'
+    Assert-True (([int]$preShift[0].start -eq 4) -and ([int]$preShift[0].end -eq 5)) 'pure insert shifts by +newCount'
 }
 finally {
     Restore-GitCoreTestEnv -Root $repo

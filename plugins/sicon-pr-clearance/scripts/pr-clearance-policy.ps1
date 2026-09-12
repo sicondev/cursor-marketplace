@@ -22,7 +22,7 @@ function Get-PrClearancePolicyFuseReason {
                 }
             }
             else {
-                return 'Not on the initial clearance file list.'
+                return 'Not a PR clearance file or joined helper.'
             }
         }
     }

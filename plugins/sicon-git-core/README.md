@@ -13,8 +13,11 @@ Git Core owns generic local operations:
 - Stage and commit specific file paths with a caller-supplied message
 - Push the current branch, or a named remote and branch
 - Parse unified-diff hunks (`git diff -U0`) into HEAD path and line ranges
+- Remap line ranges from one commit to another for a single path (`Move-GitCoreLineRanges`)
 
 It does not own Azure DevOps REST, pull-request create, destructive git, commit-message policy, or agent commands.
+
+Add a function here only when it is a generic local git primitive any later workflow could need. Do not add a verb because one consuming pack needs it for its own register, policy, review, or forge semantics.
 
 ## Usage
 
