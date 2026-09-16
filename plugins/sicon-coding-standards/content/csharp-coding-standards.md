@@ -1,32 +1,31 @@
-# Sicon C# Coding Standards (v1.4)
+# Sicon C# Coding Standards (v1.5)
 
 Apply these rules when writing or reviewing C#. Prefer this document over memory.
 
-## Naming
+**EditorConfig owns format and IDE-enforceable naming** when the repo has a root `.editorconfig`
+(e.g. Platform, Approvals): indent, braces layout, usings order/groups, language keywords vs BCL
+names, method-group / delegate inference, `$"..."` vs `string.Format`, and capitalization rules
+(`PascalCase` / `camelCase` / `I` / `_camelCase` fields). Do not restate or fight those settings here.
+
+This document keeps **prose conventions** EditorConfig cannot (or does not) express.
+
+## Naming (beyond EditorConfig)
 
 | Kind | Style | Notes |
 |------|--------|--------|
-| Types, methods, constants | PascalCase | No underscores |
-| Locals, parameters | camelCase | No Hungarian (`iCount`, `szName`) |
-| Fields | `_camelCase` | Declare at top of class; never public fields — use properties |
-| Interfaces | `I` prefix | Not `…Interface` |
+| Fields | (see EditorConfig) | Declare at top of class; **never public fields** — use properties |
 | Attributes | `…Attribute` suffix | |
 | Exceptions | `…Exception` suffix | |
 | Generic type params | Single capitals (`K`, `T`) | Suffix `Type` only for `System.Type` |
 | Methods | Verb / verb-object | Prefer property over `GetX()` when appropriate |
 | Namespaces (Sage 200) | `Sicon.Sage200.Product[.Module]` | Not `Sicon.Product` |
 
-- Prefer language keywords (`int`, `object`) over BCL names (`Int32`, `Object`).
-- Prefer `using` over fully qualified names. Group: BCL usings, blank line, then app/third-party.
-- Prefer delegate inference: `SomeDelegate d = SomeMethod;` not `new SomeDelegate(…)`.
+- No Hungarian notation on locals/parameters (`iCount`, `szName`).
 
-## Style
+## Style (beyond EditorConfig)
 
-- Indent with **4 spaces** (no tabs). Align comments with the code they document.
-- Opening brace on its **own line**.
 - One blank line between methods.
 - Declare locals near first use.
-- Prefer `$"..."` over `string.Format`.
 - Prefer `string.Empty` over `""`; prefer `string.IsNullOrEmpty` for empty checks; compare with `string.Compare(a, b) == 0`.
 - XML-doc all public methods (`summary`, `param`, `returns`, `exception`, `remarks` as needed). Prefer documenting other methods too.
 
@@ -71,4 +70,3 @@ public FileStream GetFileStream(string path)
 - Comment only non-obvious assumptions, not obvious code.
 - Zero-based arrays and indexed collections.
 - Do not expose raw error messages to clients. Log them and return a safe or generic error message.
-

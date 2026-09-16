@@ -9,6 +9,6 @@ Use when editing or reviewing `.cs` files, or when the user asks about Sicon C# 
 
 ## Instructions
 
-1. Read `../../content/csharp-coding-standards.md`.
-2. Apply those naming, style, structure, practice, and Sage conventions.
-3. Prefer that document over memory; do not invent an alternate style guide.
+1. If the open repo has a root `.editorconfig`, treat it as source of truth for formatting and IDE naming (indent, braces, usings, capitalization). Do not contradict it.
+2. Read `../../content/csharp-coding-standards.md` for prose conventions (structure, practices, Sage namespaces, XML docs, etc.).
+3. Prefer that document over memory for those topics; do not invent an alternate style guide.

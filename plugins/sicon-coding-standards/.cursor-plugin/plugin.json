@@ -1,8 +1,8 @@
 {
   "name": "sicon-coding-standards",
   "displayName": "Sicon Coding Standards",
-  "version": "0.1.2",
-  "description": "Sicon C# coding standards for readable, maintainable changes.",
+  "version": "0.1.3",
+  "description": "Sicon C# coding standards (practices and Sage conventions; format via repo EditorConfig).",
   "author": {
     "name": "Sicon",
     "email": "developers@sicon.co.uk"

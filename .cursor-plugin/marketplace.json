@@ -6,13 +6,13 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.26"
+                     "version":  "0.1.27"
                  },
     "plugins":  [
                     {
                         "name":  "sicon-coding-standards",
                         "source":  "./plugins/sicon-coding-standards",
-                        "description":  "Sicon C# coding standards for readable, maintainable changes"
+                        "description":  "Sicon C# practices and Sage conventions (format via repo EditorConfig)"
                     },
                     {
                         "name":  "sicon-devils-advocate",

@@ -6,9 +6,11 @@ Install from the Sicon Team Marketplace, then enable the plugin.
 
 ## Included
 
-- **Skill:** `csharp-coding-standards` — apply Sicon C# naming, practices, and Sage conventions
+- **Skill:** `csharp-coding-standards` — apply Sicon C# practices and Sage conventions (prose)
 - **Rule:** auto-attaches on `**/*.cs` and points the agent at that skill
-- **Reference:** `content/csharp-coding-standards.md` (Version 1.4, agent-oriented)
+- **Reference:** `content/csharp-coding-standards.md` (Version 1.5)
+
+Format and IDE-enforceable naming live in each product repo’s `.editorconfig` when present; this plugin no longer duplicates those rules.
 
 ## Usage
 
