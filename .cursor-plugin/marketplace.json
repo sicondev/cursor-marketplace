@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.27"
+                     "version":  "0.1.28"
                  },
     "plugins":  [
                     {
@@ -53,6 +53,11 @@
                         "name":  "sicon-pr-clearance",
                         "source":  "./plugins/sicon-pr-clearance",
                         "description":  "Drive an Azure DevOps pull request to review-quiet via Policy, Human, and configured review tools"
+                    },
+                    {
+                        "name":  "sicon-typesetter",
+                        "source":  "./plugins/sicon-typesetter",
+                        "description":  "Prep dirty files against each repo\u0027s format and lint tooling before hard gates are on"
                     }
                 ]
 }
