@@ -668,7 +668,7 @@ function Wait-ReviewFinished {
     do {
         $last = Get-ReviewState -PullRequestId $PullRequestId -Sha $Sha -WorkspaceRoot $WorkspaceRoot
         $state = [string]$last.state
-        if ($state -eq 'finished_this_sha' -or $state -eq 'finished_stale_sha') {
+        if ($state -eq 'finished_this_sha') {
             return [pscustomobject]@{
                 state       = $state
                 timedOut    = $false
@@ -759,6 +759,9 @@ function Get-PrClearanceNextAction {
 
     if ($FindingCount -ge 0) {
         if ($FindingCount -eq 0) {
+            if ($State -eq 'finished_stale_sha') {
+                return [pscustomobject]@{ action = 'request_and_wait' }
+            }
             return [pscustomobject]@{ action = 'finalize_quiet' }
         }
         if ($ActBatchCount -ge $script:PrClearanceMaxActBatches) {
