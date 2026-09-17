@@ -145,6 +145,8 @@ Assert-Equal 'wait' (Get-PrClearanceNextAction -State in_flight -FirstInteractio
 Assert-Equal 'finalize_quiet' (Get-PrClearanceNextAction -State finished_this_sha -FirstInteraction -FindingCount 0 -ActBatchCount 0).action 'first pass already quiet stays quiet'
 Assert-Equal 'finalize_quiet' (Get-PrClearanceNextAction -State none -FindingCount 0 -ActBatchCount 0).action 'later empty findings is completion'
 Assert-Equal 'finalize_quiet' (Get-PrClearanceNextAction -State in_flight -FindingCount 0 -ActBatchCount 1).action 'later empty findings completes even if leftover in_flight'
+Assert-Equal 'request_and_wait' (Get-PrClearanceNextAction -State finished_stale_sha -FindingCount 0 -ActBatchCount 1).action 'later empty + stale kicks tip review'
+Assert-Equal 'finalize_quiet' (Get-PrClearanceNextAction -State finished_this_sha -FindingCount 0 -ActBatchCount 1).action 'later empty + tip finished is quiet'
 Assert-Equal 'act' (Get-PrClearanceNextAction -State none -FindingCount 1 -ActBatchCount 1).action 'later findings still act'
 Assert-Equal 'request_and_wait' (Get-PrClearanceNextAction -State none -FindingCount 0 -ActBatchCount 1 -AfterPush).action 'after push still kicks on a new tip'
 
