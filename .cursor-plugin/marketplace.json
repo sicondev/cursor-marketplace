@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.29"
+                     "version":  "0.1.30"
                  },
     "plugins":  [
                     {
@@ -58,6 +58,11 @@
                         "name":  "sicon-codeant-triage",
                         "source":  "./plugins/sicon-codeant-triage",
                         "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
+                    },
+                    {
+                        "name":  "sicon-devops-leading-brief",
+                        "source":  "./plugins/sicon-devops-leading-brief",
+                        "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline or Superpowers; ship offer with nineyards-shaped message gate"
                     }
                 ]
 }

@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Devops Leading Brief Logo</title>
+  <desc id="desc">Chunky flat pass road through three towns.</desc>
+
+  <rect width="128" height="128" rx="20" fill="#0F172A"/>
+
+  <!-- Mountain-pass road -->
+  <path
+      d="M20 92
+         C32 92 38 78 48 72
+         C58 66 62 80 74 74
+         C86 68 90 50 108 44"
+      fill="none"
+      stroke="#F8FAFC"
+      stroke-width="14"
+      stroke-linecap="round"
+      stroke-linejoin="round"/>
+
+  <!-- Town 1 (valley start) -->
+  <circle cx="28" cy="90" r="11" fill="#F59E0B"/>
+  <circle cx="28" cy="90" r="5" fill="#0F172A"/>
+
+  <!-- Town 2 (mid pass) -->
+  <circle cx="64" cy="74" r="11" fill="#F59E0B"/>
+  <circle cx="64" cy="74" r="5" fill="#0F172A"/>
+
+  <!-- Town 3 (summit lead) -->
+  <circle cx="102" cy="46" r="12" fill="#F59E0B"/>
+  <circle cx="102" cy="46" r="5" fill="#0F172A"/>
+</svg>
