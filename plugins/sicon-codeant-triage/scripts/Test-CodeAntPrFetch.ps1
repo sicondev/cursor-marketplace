@@ -2,8 +2,12 @@
 <#
 .SYNOPSIS
   Smoke test for Fetch-CodeAntPrFindings.ps1 JSON shape against a real PR.
+.DESCRIPTION
+  Run from the resolved scripts root (plugin-first: sicon-codeant-triage direct + marketplaces/cache; packs dogfood last).
 .PARAMETER PullRequestId
   Azure DevOps pull request id (required — no Approvals-specific default).
+.EXAMPLE
+  powershell -NoProfile -File <plugin-root>\scripts\Test-CodeAntPrFetch.ps1 -PullRequestId 28305
 .EXAMPLE
   & "$env:USERPROFILE\.cursor\packs\codeant-triage\scripts\Test-CodeAntPrFetch.ps1" -PullRequestId 28305
 #>

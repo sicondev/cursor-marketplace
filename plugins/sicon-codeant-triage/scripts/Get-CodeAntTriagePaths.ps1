@@ -1,10 +1,11 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Resolve CodeAnt Triage user-data and shipped-runtime paths (user pack or plugin).
+  Resolve CodeAnt Triage user-data and shipped-runtime paths (plugin or user pack).
 .DESCRIPTION
   User catalog/prefs: %USERPROFILE%\.cursor\codeant-triage\
-  Scripts/core: parent of this script (packs/codeant-triage or sicon-codeant-triage plugin tree).
+  Scripts/core: parent of this script — call from the plugin-first resolved root
+  (sicon-codeant-triage direct + marketplaces/cache; packs dogfood last).
 .EXAMPLE
   & "$PSScriptRoot\Get-CodeAntTriagePaths.ps1" -Json
 #>

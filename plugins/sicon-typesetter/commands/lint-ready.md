@@ -13,9 +13,7 @@ User invokes `/lint-ready` (or asks to get dirty files lint-ready).
 
 ## Scripts root
 
-```powershell
-$typesetter = Join-Path $env:USERPROFILE '.cursor\packs\typesetter\scripts'
-```
+**Dual Resolve** `sicon-typesetter` → `scripts/`: plugin direct → newest `plugins/marketplaces|cache` (bounded) → packs dogfood only if no plugin; never prefer pack. Set `$typesetter` to that scripts root.
 
 ## Flow
 

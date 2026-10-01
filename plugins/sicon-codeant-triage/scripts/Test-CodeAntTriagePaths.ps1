@@ -2,6 +2,9 @@
 <#
 .SYNOPSIS
   Path helper, init seed, legacy packs migrate, no public-xml copy.
+.DESCRIPTION
+  Exercises Get-CodeAntTriagePathSet for contrib + plugin layouts. Agents resolve the live
+  scripts root plugin-first (sicon-codeant-triage direct + marketplaces/cache; packs dogfood last).
 .EXAMPLE
   & "$PSScriptRoot\Test-CodeAntTriagePaths.ps1"
 #>

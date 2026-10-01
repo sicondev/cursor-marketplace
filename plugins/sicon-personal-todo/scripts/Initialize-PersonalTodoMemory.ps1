@@ -6,11 +6,12 @@
   Templates are resolved relative to this script:
     <root>/scripts/Initialize-PersonalTodoMemory.ps1
     <root>/templates/memory/...
-  <root> is either ~/.cursor/packs/personal-todo (user-pack) or the sicon-personal-todo plugin tree.
-.EXAMPLE
-  & "$env:USERPROFILE\.cursor\packs\personal-todo\scripts\Initialize-PersonalTodoMemory.ps1"
+  Resolve this script plugin-first: sicon-personal-todo direct + marketplaces/cache;
+  <root> packs/personal-todo is dogfood only when no plugin is present.
 .EXAMPLE
   powershell -NoProfile -File <plugin-root>\scripts\Initialize-PersonalTodoMemory.ps1
+.EXAMPLE
+  & "$env:USERPROFILE\.cursor\packs\personal-todo\scripts\Initialize-PersonalTodoMemory.ps1"
 #>
 param(
     [string]$ProfileRoot = (Join-Path $env:USERPROFILE '.cursor'),
@@ -29,7 +30,7 @@ $TemplateRoot = [IO.Path]::GetFullPath($TemplateRoot)
 if (-not (Test-Path -LiteralPath $TemplateRoot)) {
     throw @"
 Templates not found at: $TemplateRoot
-Install personal-todo (user pack or Team Marketplace plugin), then re-run this script from that install's scripts/ folder.
+Install sicon-personal-todo (Team Marketplace; plugin-first via marketplaces/cache) or dogfood pack, then re-run this script from that install's scripts/ folder.
 "@
 }
 

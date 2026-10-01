@@ -5,6 +5,9 @@
 .DESCRIPTION
   Emits JSON: remoteId (Collection/Project/Repository), displayName (folder leaf),
   plus collection/project/repository/workspaceRoot. On-prem TFS remotes only.
+  Run from the resolved scripts root (plugin-first: sicon-codeant-triage direct + marketplaces/cache; packs dogfood last).
+.EXAMPLE
+  powershell -NoProfile -File <plugin-root>\scripts\Get-CodeAntRepoScope.ps1
 .EXAMPLE
   & "$env:USERPROFILE\.cursor\packs\codeant-triage\scripts\Get-CodeAntRepoScope.ps1"
 .EXAMPLE

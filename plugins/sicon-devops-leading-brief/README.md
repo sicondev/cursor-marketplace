@@ -8,12 +8,12 @@ Install from the Sicon Team Marketplace, then use `/DLB` in chat.
 
 | Concern | Source of truth (contrib) | Installed runtime path |
 |---------|---------------------------|------------------------|
-| `/DLB` slash | `adapters/cursor/commands/DLB.md` | `%USERPROFILE%\.cursor\commands\DLB.md` |
-| DLB skill body | `adapters/cursor/skills/devops-leading-brief/SKILL.md` | `%USERPROFILE%\.cursor\skills\devops-leading-brief\SKILL.md` |
-| Trigger rule | `adapters/cursor/rules/dlb-triggers.mdc` | `%USERPROFILE%\.cursor\rules\dlb-triggers.mdc` |
-| Pack README | `content/README.md` | `%USERPROFILE%\.cursor\packs\devops-leading-brief\README.md` |
+| `/DLB` slash | `adapters/cursor/commands/DLB.md` | Plugin `sicon-devops-leading-brief` (or profile `commands/DLB.md`) |
+| DLB skill body | `adapters/cursor/skills/devops-leading-brief/SKILL.md` | **Plugin-first:** `plugins\sicon-devops-leading-brief\…` or newest under **`plugins\marketplaces\`** / **`plugins\cache\`**; dogfood `%USERPROFILE%\.cursor\skills\devops-leading-brief\SKILL.md` only if no plugin |
+| Trigger rule | `adapters/cursor/rules/dlb-triggers.mdc` | Plugin or profile `rules/dlb-triggers.mdc` |
+| Pack README | `content/README.md` | Plugin content or dogfood `%USERPROFILE%\.cursor\packs\devops-leading-brief\README.md` |
 
-This pack’s `content/` is README-only; adapters carry the Cursor surfaces.
+This pack’s `content/` is README-only; adapters carry the Cursor surfaces. Prefer Team Marketplace plugin `sicon-devops-leading-brief` over packs dogfood.
 
 ## Commands
 

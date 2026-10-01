@@ -3,11 +3,11 @@ description: Invoke DLB (Devops Leading Brief) — brief; implement inline or vi
 alwaysApply: false
 ---
 
-<!-- contrib-managed: devops-leading-brief@0.2.0 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: devops-leading-brief@0.3.0 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
 
 # DLB triggers — Devops Leading Brief
 
-When the user message matches a trigger below, follow **`/DLB`** and **Read** the DLB skill in full (dual-resolve: `%USERPROFILE%\.cursor\skills\devops-leading-brief\SKILL.md` if present; else newest `SKILL.md` under `%USERPROFILE%\.cursor\plugins\` whose path contains `devops-leading-brief`).
+When the user message matches a trigger below, follow **`/DLB`** and **Read** the DLB skill in full — **Dual Resolve** `sicon-devops-leading-brief` → `skills/devops-leading-brief/SKILL.md` (plugin direct → newest `plugins/marketplaces|cache` bounded → user-pack skills dogfood only if no plugin; never prefer pack). Do **not** load a skill from any other path substring.
 
 ## Engage when any
 

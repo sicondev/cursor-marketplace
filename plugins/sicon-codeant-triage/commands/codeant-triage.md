@@ -66,7 +66,7 @@ optional mid-loop escape (not silent):
 3. **Fix means implement in that cycle** — then confirm before moving on. Do not batch-evaluate all findings then ask once **as the default**.
 4. **No silent batch fixes** — `fix all` / `fix remaining` require an **`AskQuestion` confirm** (§ Early escape), then one batch accept — never implement without that gate.
 5. **No commit / push / ADO posts** until the session rollup and finalize AskQuestion.
-6. **No agent attribution in commit messages** — Planned commit sketches and finalize `git commit` messages must **not** include `Co-authored-by` (any form) or any email addresses (e.g. `cursoragent@cursor.com`). Subject + body (+ optional `#NNNNN` work-item lines) only. Do not inherit Approvals PreCursor / Cursor IDE co-author trailers for this pack.
+6. **No agent attribution in commit messages** — Planned commit sketches and finalize `git commit` messages must **not** include `Co-authored-by` (any form) or any email addresses (e.g. `cursoragent@cursor.com`). Subject + body (+ optional `#NNNNN` work-item lines) only. Do not inherit repo-specific advisory or Cursor IDE co-author trailers for this pack.
 
 **Do not** emit a full decision-review table of all findings then offer batch options as Phase 1. Mid-loop **Fix remaining** is an escape only — not a return to batch-decide-first.
 
@@ -105,7 +105,7 @@ powershell -NoProfile -File "$triage\Fetch-CodeAntPrFindings.ps1" -PullRequestId
 3. **Profile UAP rules** — `%USERPROFILE%\.cursor\rules\codeant-uap-*.mdc` where frontmatter `codeantRepo` is `*` or current `remoteId` (ignore mismatched files in triage even if Cursor attached them by globs).
 4. **Open-repo rules** (optional) — `.cursor/rules/*.mdc` matching each finding's file type when present in the product repo. For AP-3 / AP-6, use the core row plus any matching open-repo rule (e.g. `public-xml-summaries.mdc`) — do not load a pack-shipped public-xml sidecar.
 
-**Do not** require PreCursor, Mobius, product-repo anti-pattern overlays, or `personal-todo`.
+**Do not** require advisory review pipeline, repo PR orchestration, product-repo anti-pattern overlays, or `personal-todo`.
 
 ## Scope
 
@@ -308,7 +308,7 @@ When every finding has a recorded choice (and Accept where Fix applied):
 
 Show `git diff --stat` for the whole session (or "no code changes").
 
-**Catalog promotion** (Valid/Partial + generalizable, after **Accept** and/or after **Won't fix**, at rollup): follow § **Catalog promotion** (Gate A → repo scope AskQuestion → UAP → Gate B). Never edit `anti-patterns.core.md` or shipped CAP-/AP- rows. Do not write product-repo overlays or PreCursor rules. Remediation intent alone does **not** make a finding promotable.
+**Catalog promotion** (Valid/Partial + generalizable, after **Accept** and/or after **Won't fix**, at rollup): follow § **Catalog promotion** (Gate A → repo scope AskQuestion → UAP → Gate B). Never edit `anti-patterns.core.md` or shipped CAP-/AP- rows. Do not write product-repo overlays or product advisory rules. Remediation intent alone does **not** make a finding promotable.
 
 ## Catalog promotion
 

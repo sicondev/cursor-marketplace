@@ -50,7 +50,7 @@ Backlog content is **user-owned**. Pack/plugin updates do **not** overwrite `tod
 
 ### Install
 
-**Team Marketplace:** install **Sicon Personal Todo**, reload Cursor, then `/todo-init`.
+**Team Marketplace:** install **Sicon Personal Todo** (`sicon-personal-todo`), reload Cursor, then `/todo-init`. Resolve init script **plugin-first** (direct + **`plugins\marketplaces\`** / **`plugins\cache\`**); packs dogfood only if no plugin.
 
 **Local dogfood (ai-devtools user pack):**
 
@@ -58,7 +58,7 @@ Backlog content is **user-owned**. Pack/plugin updates do **not** overwrite `tod
 .\bootstrap\Install-UserPack.ps1 -Pack personal-todo
 ```
 
-Then `/todo-init` (or run the packs script directly):
+Then `/todo-init` (or run the resolved init script — packs path is dogfood fallback):
 
 ```powershell
 & "$env:USERPROFILE\.cursor\packs\personal-todo\scripts\Initialize-PersonalTodoMemory.ps1"

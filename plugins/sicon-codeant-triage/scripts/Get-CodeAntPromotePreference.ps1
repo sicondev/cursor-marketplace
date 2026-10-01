@@ -2,10 +2,12 @@
 <#
 .SYNOPSIS
   Print CodeAnt Triage promote preferences (scoped defaults + action catalog).
-.EXAMPLE
-  & "$env:USERPROFILE\.cursor\packs\codeant-triage\scripts\Get-CodeAntPromotePreference.ps1"
+.DESCRIPTION
+  Run from the resolved scripts root (plugin-first: sicon-codeant-triage direct + marketplaces/cache; packs dogfood last).
 .EXAMPLE
   powershell -NoProfile -File <plugin-root>\scripts\Get-CodeAntPromotePreference.ps1
+.EXAMPLE
+  & "$env:USERPROFILE\.cursor\packs\codeant-triage\scripts\Get-CodeAntPromotePreference.ps1"
 .EXAMPLE
   & "...\Get-CodeAntPromotePreference.ps1" -RemoteId 'Collection/Project/Repo'
 .EXAMPLE

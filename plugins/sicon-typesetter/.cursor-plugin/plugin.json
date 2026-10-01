@@ -1,7 +1,7 @@
 {
     "name":  "sicon-typesetter",
     "displayName":  "Sicon Typesetter",
-    "version":  "0.1.0",
+    "version":  "0.1.1",
     "description":  "Prep dirty files against each repo\u0027s format and lint tooling before hard gates are on",
     "author":  {
                    "email":  "rudolf.bothma@sicon.co.uk",

@@ -14,6 +14,7 @@ ADO Core owns generic operations:
 - List PR discussion threads, reply without changing status, and set thread status
 - Build PR web URLs
 - Resolve authenticated-user metadata
+- Get work items and comments
 - Link work items to pull requests and commits
 - Attach files to work items
 - Escape and execute Wiql queries
@@ -22,4 +23,4 @@ It does not own Flyby lifecycle behavior, Nineyards message gating, branch selec
 
 ## Usage
 
-Other Sicon workflows load this library. There is no `/ado-core` command — do not run this plugin from chat.
+Other Sicon workflows load this library. There is no `/ado-core` command — do not run this plugin from chat. Dot-source and call helpers; do not read the full script into the agent context.
