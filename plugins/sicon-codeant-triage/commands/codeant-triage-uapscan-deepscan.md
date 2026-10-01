@@ -11,11 +11,9 @@ description: Scan the workspace or a folder for personal anti-patterns; narrow t
 
 **Naming:** **UAP** = user anti-pattern rows in `anti-patterns.user.md` (+ optional profile `codeant-uap-*.mdc`). This is **not** CodeAnt (ADO) PR triage (`/codeant-triage`). Prefer a **narrowed** path for dogfood; full-workspace scans can be large — always allow abort.
 
-## Resolve scripts (dual install — order is mandatory)
+## Resolve scripts
 
-1. **User pack:** `%USERPROFILE%\.cursor\packs\codeant-triage\scripts\Get-CodeAntTriagePaths.ps1` if `Test-Path`.
-2. **Team Marketplace plugin:** search `%USERPROFILE%\.cursor\plugins\` for `Get-CodeAntTriagePaths.ps1` whose path contains `sicon-codeant-triage`. Prefer the newest by `LastWriteTime`.
-3. Else **stop** — install the user pack or **Sicon CodeAnt Triage** from the Team Marketplace.
+**Dual Resolve** `sicon-codeant-triage` → `scripts/Get-CodeAntTriagePaths.ps1`: plugin direct → newest `plugins/marketplaces|cache` (bounded) → packs dogfood only if no plugin; never prefer pack. Else stop — install from Team Marketplace.
 
 ```powershell
 $paths = (powershell -NoProfile -File "<resolved>\Get-CodeAntTriagePaths.ps1" -Json) | ConvertFrom-Json

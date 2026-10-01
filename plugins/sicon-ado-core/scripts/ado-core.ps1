@@ -1,6 +1,12 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
+$script:AdoCoreLibraryVersion = [version]'0.5.0'
+
+function Get-AdoCoreLibraryVersion {
+    return $script:AdoCoreLibraryVersion
+}
+
 function Get-AdoCoreWorkspaceRoot {
     param([string]$WorkspaceRoot = '')
 
@@ -239,6 +245,132 @@ function Get-AdoCoreWitApiBase {
         Endpoints      = $endpoints
         WitApiBase     = "$base/tfs/$collectionSegment/$projectSegment/_apis/wit"
         ProjectWebBase = "$base/tfs/$collectionSegment/$projectSegment"
+    }
+}
+
+function Resolve-AdoCoreWitApiBaseValue {
+    param(
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($WitApiBase)) {
+        Assert-AdoCoreTrustedApiBase -ApiBase $WitApiBase -Name 'WitApiBase'
+        return $WitApiBase.TrimEnd('/')
+    }
+
+    $resolved = Get-AdoCoreWitApiBase -WorkspaceRoot $WorkspaceRoot -Collection $Collection `
+        -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    return [string]$resolved.WitApiBase
+}
+
+function Get-AdoCoreWorkItem {
+    <#
+    .SYNOPSIS
+      GET one work item via WIT REST. Expand is opt-in (pass -Expand all when needed). Prefer this over hand-rolled URIs.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$WorkItemId,
+
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [string]$Expand = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $base = Resolve-AdoCoreWitApiBaseValue -WorkspaceRoot $WorkspaceRoot -WitApiBase $WitApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'WitApiBase'
+
+    $query = 'api-version=7.0'
+    if (-not [string]::IsNullOrWhiteSpace($Expand)) {
+        $query = "`$expand=$([uri]::EscapeDataString($Expand))&$query"
+    }
+    $uri = "$base/workitems/$WorkItemId`?$query"
+    return Invoke-RestMethod -Uri $uri -Method Get -UseDefaultCredentials
+}
+
+function Get-AdoCoreWorkItemComments {
+    <#
+    .SYNOPSIS
+      GET work-item comments via WIT comments API (continuation-aware, bounded). Prefer this over hand-rolled URIs.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$WorkItemId,
+
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [ValidateRange(1, 2000)]
+        [int]$MaxComments = 500,
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $base = Resolve-AdoCoreWitApiBaseValue -WorkspaceRoot $WorkspaceRoot -WitApiBase $WitApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'WitApiBase'
+
+    $baseUri = "$base/workitems/$WorkItemId/comments?api-version=7.0-preview.3"
+    $comments = New-Object 'System.Collections.Generic.List[object]'
+    $continuationToken = $null
+    $truncated = $false
+    $maxPages = 40
+    $pageCount = 0
+    do {
+        if ($pageCount -ge $maxPages) {
+            $truncated = $true
+            break
+        }
+        $pageCount++
+
+        $uri = $baseUri
+        if ($continuationToken) {
+            $uri = "$uri&continuationToken=$([uri]::EscapeDataString($continuationToken))"
+        }
+
+        $response = Invoke-WebRequest -Uri $uri -Method Get -UseDefaultCredentials -UseBasicParsing
+        $payload = $response.Content | ConvertFrom-Json
+        $page = @()
+        if ($payload.PSObject.Properties.Name -contains 'comments' -and $payload.comments) {
+            $page = @($payload.comments)
+        }
+        elseif ($payload.PSObject.Properties.Name -contains 'value' -and $payload.value) {
+            $page = @($payload.value)
+        }
+
+        foreach ($item in $page) {
+            if ($comments.Count -ge $MaxComments) {
+                $truncated = $true
+                break
+            }
+            [void]$comments.Add($item)
+        }
+
+        if ($truncated) {
+            $continuationToken = $null
+        }
+        else {
+            $continuationToken = Get-AdoCoreContinuationToken -Response $response
+        }
+    } while ($continuationToken)
+
+    return [pscustomobject]@{
+        count     = $comments.Count
+        comments  = @($comments.ToArray())
+        truncated = $truncated
     }
 }
 

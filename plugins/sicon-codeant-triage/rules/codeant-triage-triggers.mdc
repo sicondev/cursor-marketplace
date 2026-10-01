@@ -3,7 +3,7 @@ description: Invoke CodeAnt Triage — validate CodeAnt (ADO) PR comments by PR 
 alwaysApply: false
 ---
 
-<!-- contrib-managed: codeant-triage@0.7.0 — source: ai-devtools/contrib/codeant-triage/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: codeant-triage@0.9.1 — source: ai-devtools/contrib/codeant-triage/ — prefer PR there; local edits may be overwritten on sync -->
 
 # CodeAnt Triage triggers
 

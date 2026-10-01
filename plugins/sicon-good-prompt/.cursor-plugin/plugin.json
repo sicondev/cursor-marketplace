@@ -1,7 +1,7 @@
 {
     "name":  "sicon-good-prompt",
     "displayName":  "Sicon Good Prompt",
-    "version":  "0.1.0",
+    "version":  "0.1.1",
     "description":  "Coach implementation briefs via /good-prompt — gap-fill until handoff to Plan",
     "author":  {
                    "email":  "rudolf.bothma@sicon.co.uk",

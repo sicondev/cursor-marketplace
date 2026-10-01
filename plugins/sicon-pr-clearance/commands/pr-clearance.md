@@ -7,28 +7,13 @@ description: Drive an Azure DevOps pull request to review-quiet using Policy, Hu
 
 Team Marketplace plugin `sicon-pr-clearance`. Invoke `/pr-clearance` only (no natural-language trigger).
 
-## Resolve scripts (plugin first)
+## Resolve scripts
 
-1. **Team Marketplace plugin:** search `%USERPROFILE%\.cursor\plugins\` for `pr-clearance-lib.ps1` whose path contains `sicon-pr-clearance`. Prefer the newest by `LastWriteTime`.
-2. **User pack (local dogfood only):** `%USERPROFILE%\.cursor\packs\pr-clearance\scripts\pr-clearance-lib.ps1` if `Test-Path`.
-3. Else **stop** — install **Sicon PR Clearance** from the Team Marketplace, reload, retry. Name the **tool id** `pr-clearance`, not a script.
+**Dual Resolve** `sicon-pr-clearance` → `scripts/pr-clearance-lib.ps1`: plugin direct → newest `plugins/marketplaces|cache` (bounded) → packs dogfood only if no plugin; never prefer pack. Else stop — install **Sicon PR Clearance** from the Team Marketplace. Tool id `pr-clearance`, not a script.
 
 ```powershell
-$pluginHits = @(Get-ChildItem -LiteralPath (Join-Path $env:USERPROFILE '.cursor\plugins') -Recurse -Filter 'pr-clearance-lib.ps1' -ErrorAction SilentlyContinue |
-    Where-Object { $_.FullName -match 'sicon-pr-clearance' } |
-    Sort-Object LastWriteTime -Descending)
-if ($pluginHits.Count -gt 0) {
-    $clearance = $pluginHits[0].DirectoryName
-}
-else {
-    $packLib = Join-Path $env:USERPROFILE '.cursor\packs\pr-clearance\scripts\pr-clearance-lib.ps1'
-    if (Test-Path -LiteralPath $packLib -PathType Leaf) {
-        $clearance = Split-Path -Parent $packLib
-    }
-}
-if (-not $clearance) { throw 'pr-clearance is not installed' }
-. (Join-Path $clearance 'pr-clearance-lib.ps1')
-. (Join-Path $clearance 'pr-clearance-policy.ps1')
+. (Join-Path <scripts-root> 'pr-clearance-lib.ps1')
+. (Join-Path <scripts-root> 'pr-clearance-policy.ps1')
 $policyMd = Get-PrClearancePolicyMarkdownPath
 ```
 

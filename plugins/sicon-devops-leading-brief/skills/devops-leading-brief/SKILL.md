@@ -8,8 +8,6 @@ description: >-
 disable-model-invocation: true
 ---
 
-<!-- contrib-managed: devops-leading-brief@0.2.0 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
-
 # Devops Leading Brief (DLB)
 
 Set **fix context** for an Azure DevOps work item, **persist the brief to a file**,
@@ -85,23 +83,24 @@ Ship = **Ship message gate** → commit → push → ADO PR → CodeAnt → `/pr
 
 Same for both modes. **ADO read order (do not skip ahead):**
 
-1. **ado-core endpoints first** — `%USERPROFILE%\.cursor\packs\ado-core\scripts\ado-core.ps1` → `Get-AdoCoreWitApiBase -WorkspaceRoot <product-repo>` (Windows default credentials; collection/project from `remote.origin.url`). Then **GET** the work item + comments via that `WitApiBase` (`$expand=all` on the WI). ado-core does **not** currently export `Get-AdoCoreWorkItem` / `Get-AdoCoreWorkItemComments` — do not invent those names.
-2. **Hard-coded TFS REST** — only if ado-core is missing or WitApiBase resolution fails. Full expand + comments + relations.
-3. **azgit** — last resort only (thin card fields). Never prefer azgit when WitApiBase REST or hard-coded TFS REST already returned a full WI.
+1. **ado-core first** — **Dual Resolve** `sicon-ado-core` → `scripts/ado-core.ps1` (plugin direct → newest `plugins/marketplaces|cache` bounded → packs dogfood only if no plugin; never prefer pack). Dot-source; require `Get-AdoCoreWorkItem`, `Get-AdoCoreWorkItemComments`, and `Get-AdoCoreLibraryVersion` **≥ 0.5.0**. Call **`Get-AdoCoreWorkItem -Expand all`** and **`Get-AdoCoreWorkItemComments`**. If comments return `truncated=$true`, surface that in the chat report and brief. Do **not** hand-roll WIT URIs. Do **not** `Read` `ado-core.ps1` into context.
+2. **Hard-coded TFS REST** — only if no usable ado-core path, helpers missing after load, or those calls throw. Full expand **and** comments API + relations (both GETs in the fallback block below).
+3. **azgit** — last resort only (thin card fields). Never prefer azgit when ado-core already returned a full WI.
 
 Then **Halo** per below; ignore `.eml`/`.msg`; Found in / Fix in; Explorer-ready paths.
 
 ```powershell
-. "$env:USERPROFILE\.cursor\packs\ado-core\scripts\ado-core.ps1"
-$wit = Get-AdoCoreWitApiBase -WorkspaceRoot <product-repo>
-$wiUri = "$($wit.WitApiBase)/workitems/{id}?`$expand=all&api-version=7.0"
-$commentsUri = "$($wit.WitApiBase)/workitems/{id}/comments?api-version=7.0-preview.3"
-# Invoke-WebRequest -UseDefaultCredentials -UseBasicParsing on those URIs
+# After Dual Resolve + dot-source ado-core (≥ 0.5.0 helpers):
+$wi = Get-AdoCoreWorkItem -WorkspaceRoot <product-repo> -WorkItemId <id> -Expand all
+$comments = Get-AdoCoreWorkItemComments -WorkspaceRoot <product-repo> -WorkItemId <id>
+# If $comments.truncated → note incomplete history in chat + brief
+# If helpers missing / throw → TFS REST (below), then azgit
 ```
 
 ```text
-# Hard-coded TFS REST only when ado-core / WitApiBase unavailable
+# Hard-coded TFS REST only when ado-core helpers unavailable (WI + comments)
 GET https://tfs.sicon.co.uk:8443/tfs/SiconProductsGit/Sicon/_apis/wit/workitems/{id}?$expand=all&api-version=7.0
+GET https://tfs.sicon.co.uk:8443/tfs/SiconProductsGit/Sicon/_apis/wit/workitems/{id}/comments?api-version=7.0-preview.3
 ```
 
 ### Halo (prefer API; medium gate on fail)
@@ -155,7 +154,7 @@ off (default / offer only) | on (user asked to ship/commit/PR)
 - **Attachments:** … (no .eml/.msg)
 
 ## Sources used
-- ADO: ado-core / TFS REST fallback / azgit last resort
+- ADO: **Dual Resolve** `sicon-ado-core` → helpers ≥ 0.5.0 → `Get-AdoCoreWorkItem -Expand all` + comments (note `truncated`) / TFS REST fallback / azgit last
 - Halo: API / IDE browser (interim) / declined / n/a
 - Org packs (write root): … | none | n/a until write root known
 
@@ -417,7 +416,7 @@ Runs only after **Ship message gate** proceed (`go` / equivalent) with locked me
 For **each write root**:
 
 1. Confirm checkout is that root’s working branch.
-2. **Commit** with the **accepted** commit message (PreCursor / review pipeline / org commit rules) when there are uncommitted tip changes. If the tip is already committed and only needs push/PR update, skip an empty commit.
+2. **Commit** with the **accepted** commit message (product commit conventions and org commit rules) when there are uncommitted tip changes. If the tip is already committed and only needs push/PR update, skip an empty commit.
 3. **Push** (`-u` if needed). If remote already has the tip, skip a no-op push.
 4. **ADO PR** using the **accepted** PR title/body when applicable — **reuse, do not duplicate:**
    - Resolve git `ApiBase` via ado-core. Call `Get-AdoCoreOpenPullRequestsForBranch` (or `Resolve-AdoCorePullRequestId`) for this branch.
@@ -442,7 +441,7 @@ Straight `/DLB <id> implement` skips step 1.
 ## Rules
 
 - ADO primary; Halo supports the card (never the reverse).
-- **ADO reads:** ado-core `Get-AdoCoreWitApiBase` + WIT REST first → hard-coded TFS REST → azgit last; do not call non-existent `Get-AdoCoreWorkItem` helpers.
+- **ADO reads:** **Dual Resolve** `sicon-ado-core` → `scripts/ado-core.ps1` → verify version ≥ 0.5.0 + WI helpers → `Get-AdoCoreWorkItem -Expand all` + comments (surface `truncated`) → on miss/fail TFS REST → azgit last; no hand-rolled WIT URIs; do not `Read` ado-core.ps1.
 - **Halo:** prefer API; if case id exists and API fails → **list IDE browser tabs first**; matching ticket tab → read and continue (no ask); only if no matching tab → **medium gate** (stop compiling; ask open IDE browser or decline; resume only after). Never re-ask when a matching tab is already open or the user says it is. Never demote that ask to Enrich after a finished brief; never finish the brief while Halo is still unresolved.
 - **Brief:** rich **chat** report (findings + Enrich); **trimmed implementer brief file** (no Enrich / Next / Links followed; single Brief block); stop; user need not say “enrich” — fold-ins update chat + file; Enrich is never a gate option.
 - **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the thin brief file** as **sole** card-truth; do not re-paste the fat chat report; **infer** path; **Org pack load** then Implement policy always applies.

@@ -3,13 +3,14 @@
 .SYNOPSIS
   Seed user catalog and promote-preferences when missing (Copy-IfMissing). Migrates once from the legacy packs path.
 .DESCRIPTION
-  Templates live beside this script (user pack or plugin): <installRoot>/templates/
+  Templates live beside this script (plugin-first install root or packs dogfood): <installRoot>/templates/
   User files: %USERPROFILE%\.cursor\codeant-triage\ (survives pack/plugin reinstall).
-  Does not recreate anti-patterns.core.md (reinstall the pack or plugin for that).
-.EXAMPLE
-  & "$env:USERPROFILE\.cursor\packs\codeant-triage\scripts\Initialize-CodeAntTriageCatalog.ps1"
+  Does not recreate anti-patterns.core.md (reinstall sicon-codeant-triage / pack for that).
+  Resolve this script plugin-first (direct + marketplaces/cache); packs path is dogfood only.
 .EXAMPLE
   powershell -NoProfile -File <plugin-root>\scripts\Initialize-CodeAntTriageCatalog.ps1
+.EXAMPLE
+  & "$env:USERPROFILE\.cursor\packs\codeant-triage\scripts\Initialize-CodeAntTriageCatalog.ps1"
 #>
 param(
     [string]$ProfileRoot = (Join-Path $env:USERPROFILE '.cursor'),
@@ -30,7 +31,7 @@ $TemplateRoot = [IO.Path]::GetFullPath($TemplateRoot)
 if (-not (Test-Path -LiteralPath $TemplateRoot)) {
     throw @"
 Templates not found at: $TemplateRoot
-Install codeant-triage (user pack or Team Marketplace plugin), then re-run this script from that install's scripts/ folder.
+Install sicon-codeant-triage (Team Marketplace; plugin-first via marketplaces/cache) or dogfood pack, then re-run this script from that install's scripts/ folder.
 "@
 }
 

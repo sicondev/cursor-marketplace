@@ -4,7 +4,7 @@ Pack-managed index for **CodeAnt Triage** (`/codeant-triage`). Overwritten on in
 
 User-promoted rows live in `%USERPROFILE%\.cursor\codeant-triage\anti-patterns.user.md` (seeded by init; survives reinstall). Filter user rows by ADO remote Scope (`Get-CodeAntRepoScope.ps1`); core rows below always apply.
 
-**Shipped install root:** user pack `%USERPROFILE%\.cursor\packs\codeant-triage\` or Team Marketplace plugin `sicon-codeant-triage` (core may sit at install root or `content/`).
+**Shipped install root (plugin-first):** Team Marketplace plugin `sicon-codeant-triage` — direct `%USERPROFILE%\.cursor\plugins\sicon-codeant-triage\` or newest under **`plugins\marketplaces\`** / **`plugins\cache\`**; **only if no plugin** → user pack dogfood `%USERPROFILE%\.cursor\packs\codeant-triage\` (core may sit at install root or `content/`).
 
 **Naming:** **CodeAnt (ADO)** = DevOps PR reviewer. **CodeAnt Triage** = local `/codeant-triage` workflow.
 
