@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.31"
+                     "version":  "0.1.32"
                  },
     "plugins":  [
                     {
@@ -63,6 +63,11 @@
                         "name":  "sicon-devops-leading-brief",
                         "source":  "./plugins/sicon-devops-leading-brief",
                         "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline or Superpowers; ship offer with nineyards-shaped message gate"
+                    },
+                    {
+                        "name":  "ponytail",
+                        "source":  "./plugins/ponytail",
+                        "description":  "Lazy senior dev mode. Forces the simplest, shortest solution that actually works: YAGNI, stdlib first, no unrequested abstractions."
                     }
                 ]
 }
