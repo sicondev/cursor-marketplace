@@ -8,7 +8,7 @@ Install from the Sicon Team Marketplace, then reload Cursor. The always-on rule 
 
 | Command | Purpose |
 |---------|---------|
-| `/ponytail` | Intensity: lite, full (default), ultra, or off |
+| `/ponytail` | Intensity: lite, full (default), ultra, or off. No level keeps the current level, or turns on at the default if it was off |
 | `/ponytail-review` | Over-engineering review of the current changes |
 | `/ponytail-audit` | Whole-repo over-engineering audit |
 | `/ponytail-debt` | Harvest `ponytail:` shortcut comments into a ledger |
@@ -32,11 +32,11 @@ Node lifecycle hooks are not included. Upstream documents the always-on rule and
 | | |
 |--|--|
 | Upstream | [DietrichGebert/ponytail](https://github.com/DietrichGebert/ponytail) |
-| Fork used for this package | [sicondev/ponytail](https://github.com/sicondev/ponytail) |
-| Version | 4.10.0 |
-| Commit | `e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156` (`chore: release v4.10.0`) |
+| Tag | `v4.10.3` |
+| Version | 4.10.3 |
+| Commit | `ef8ca48fed2321ab6668b2a954f23b1af97d7f6d` (`chore: release v4.10.3`) |
 
-The fork has no `v4.10.0` git tag. The release commit is the pin. Author of the plugin content is Dietrich Gebert. Sicon publishes it on the Team Marketplace.
+Copied from that upstream tag. [sicondev/ponytail](https://github.com/sicondev/ponytail) is still at `e3ba2aa` (v4.10.0) and has no tags, so it is not the pin. Author of the plugin content is Dietrich Gebert. Sicon publishes it on the Team Marketplace.
 
 ## Try it locally
 
