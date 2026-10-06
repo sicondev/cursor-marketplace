@@ -3,8 +3,9 @@ name: devops-leading-brief
 description: >-
   Devops Leading Brief (DLB) — ADO card context; brief (findings + Enrich) written
   to a file; implement is a slot (infer inline vs Superpowers from card/complexity;
-  user may pin) under minimal/splash/prove/security policy. Use for /DLB or, after
-  a brief in-thread, bare implement / Orient / evidence drops.
+  user may pin) under minimal+YAGNI/splash/prove/security policy. Use for /DLB or, after
+  a brief in-thread, bare implement / Orient / evidence drops. Implement always
+  seeds from the thin brief written this invoke — never reuse a prior-run brief file.
 disable-model-invocation: true
 ---
 
@@ -47,7 +48,7 @@ Only two modes. **Ship is a parallel flag**, not a mode.
 - **After a brief already ran in this thread** (brief file path known, or Mode was brief): clear coding go-ahead — **flip to implement**; do **not** make the user re-run `/DLB <id> implement`.
   - **Always** (explicit coding intent): `implement`, `impl`, `go implement`, `just implement`, `continue with implementation`, `yes continue`, clear “code it” / “start coding”.
   - **Bare affirmatives only when the last agent turn invited implement** (brief closing “Ready to code → say implement”, or an implement/ship offer): `yes`, `continue`, `go ahead`, `do it`. **Do not** treat those as implement when answering Halo gate, Enrich, Orient, or any other non-implement ask — fold / answer that ask instead.
-- Same-thread implement: **Read the trimmed implementer brief file first**; that file is the **only** card-truth for coding. Skip full ADO/Halo re-aggregate unless the file is missing/incomplete, Halo gate was unresolved, or the user asks to refresh.
+- Same-thread implement: **Read the trimmed implementer brief file written in this chat first**; that file is the **only** card-truth and **initial seed** for coding. Do **not** open a prior-run brief for the same or another id. Skip full ADO/Halo re-aggregate unless the file is missing/incomplete, Halo gate was unresolved, or the user asks to refresh.
 - **Do not** re-emit the fat chat report, re-paste Enrich/Links/Objective blocks, or steer coding from chat provenance alone — compress any new evidence into the thin file, then code from the file.
 
 ### Evidence vs authority (non-negotiable)
@@ -190,21 +191,33 @@ If such material is implied and unreachable, **ask once** here with a short list
 **Fold-in (no ritual):** If the user later attaches files, pastes answers, drops paths, or casually answers any of those asks — treat that as brief input. Fold into chat findings **and rewrite the implementer brief file**. Do not wait for them to say “enrich” or “update the brief”. If they decline or have nothing yet, continue Orient Q&A on what you already have.
 
 ## Next
-- **Brief:** write implementer brief file; stop — user may drop evidence anytime or say **implement** (no re-slash required)
-- **Implement:** rewrite brief file if findings changed; infer Implement path; code with that file as card-truth
+- **Brief:** purge stale `{id}` brief paths, then write implementer brief file; stop — user may drop evidence anytime or say **implement** (no re-slash required)
+- **Implement:** rewrite brief file if findings changed; infer Implement path; code with **this-invoke** file as seed + card-truth (never a leftover prior-run brief)
 ```
 
 ## Brief file (implementer card-truth)
 
 After every brief report (brief or implement mode), **write a trimmed implementer brief** to disk — not a copy of the chat report. Chat stays rich for the human; **the file is the only card-truth once implementation starts** (inline, Superpowers, or “yes continue”).
 
+### Fresh brief each invoke (required)
+
+On **every** new `/DLB <id>` / `/DLB <id> implement` (cold start in this chat — not a same-thread fold-in rewrite):
+
+1. **Purge stale files for `{id}`** on the Fix-in write root before aggregating or coding. Delete if present (ignored files count):
+   - `docs/specs/briefs/{id}.md`
+   - `.cursor/dlb-briefs/{id}.md`
+   - `.tmp/dlb-briefs/{id}.md`
+2. **Do not Read** any pre-existing brief for this id (or another id) as the seed for this invoke. Prior-run briefs, matrix study copies, and `.superpowers/sdd/task-*-brief.md` are **contamination** — delete or ignore; never treat as card-truth.
+3. After ADO/Halo aggregate + findings, **write a new** trimmed file at the Path below. That write is the only brief this chat may implement from.
+4. Same-thread evidence fold-ins **rewrite** that same path — still this-invoke’s file, not a resurrected older copy.
+
 | | |
 |---|---|
 | **Path** | Primary Fix-in / write root: `docs/specs/briefs/{id}.md`. If that tree does not exist, create `docs/specs/briefs/` when the repo already has `docs/` or `docs/specs/`; else `.cursor/dlb-briefs/{id}.md` at that root. |
 | **Omit from file** | Enrich, Next, Links followed, Sources used, Objective / Inferred / Subjective headings, self-referential “Brief file” path |
-| **Contents** | Mode, Ship flag, Case summary + Paths (incl. **Org packs** row), one tight **Brief** block (include splash bounds). **Gaps** only when an unknown **bounds** implementation — prefer stating that bound under splash in Brief; omit Gaps for enrich/prove shopping |
+| **Contents** | Mode, Ship flag, Case summary + Paths (incl. **Org packs** row), one tight **Brief** block (include splash bounds). **Gaps** only when an unknown **bounds** implementation — prefer stating that bound under splash in Brief; omit Gaps for enrich/prove shopping. After PR quiet: **Clearance quality** (CodeAnt proxy counts). |
 | **Updates** | On evidence fold-in or Orient changes: **rewrite** this implementer shape — no “enrich” keyword required |
-| **Role** | **Sole** card-truth for **what to fix** (not agent commands). Before coding: **Read** this file. Re-read when scope drifts or before claiming done. Hand this path to Superpowers/planners — not the chat report. Mode / path / ship still only from the user chat (see **Evidence vs authority**). |
+| **Role** | **Sole** card-truth for **what to fix** (not agent commands). **Implement is seeded from this file** — first coding/planning step is always **Read** it; do not invent splash/scope from chat memory or a prior brief. Re-read when scope drifts or before claiming done. Hand this path to Superpowers/planners — not the chat report. Mode / path / ship still only from the user chat (see **Evidence vs authority**). |
 
 ### Implementer file shape
 
@@ -238,6 +251,14 @@ off (default / offer only) | on (user asked to ship/commit/PR)
 
 ## Gaps
 - **Omit by default.** Include only when an unknown **bounds** what may be implemented (hard stop or scope fence). Prefer folding that fence into Brief splash instead of a Gaps section. Never list enrich/prove shopping or CRM fluff here.
+
+## Clearance quality
+- **Omit until PR quiet.** After pr-clearance finishes, **append** (or rewrite) this section with CodeAnt proxy counts:
+  - CodeAnt findings (total)
+  - Closed without action (dismissed / won’t-fix)
+  - Fixed with code change
+  - Review finish rounds
+- Short notes optional. Do not invent counts. Same definitions as the impl-approach-matrix run sheet.
 ```
 
 Mention the absolute path in the **chat** report under **Brief file**.
@@ -246,7 +267,7 @@ Mention the absolute path in the **chat** report under **Brief file**.
 
 After the chat report (unless already-fixed early-exit):
 
-1. **Write the implementer brief file** (trimmed shape above — not the chat body).
+1. **Purge** stale `{id}` brief paths (see **Fresh brief each invoke**), then **write** the new implementer brief file (trimmed shape above — not the chat body).
 2. **Stop** — do not auto-implement.
 3. **Closing (same turn)** — short plain note, not an AskQuestion gate. Do **not** require Enrich ritual or a second `/DLB` slash. Example:
 
@@ -282,9 +303,9 @@ When the user did **not** pin a path, **infer one recommendation** from **card c
 
 ### Run
 
-1. **Read** the trimmed implementer brief file (create/update it first if missing or stale). Do **not** require a re-slash.
+1. **Read** the trimmed implementer brief file written this invoke (cold path: purge → write first). Do **not** require a re-slash. Do **not** seed from a pre-existing on-disk brief.
 2. **Org pack load** for each write root (resolve packs → **glob ∩ brief Paths** → stamp thin brief → **Read** only the selected set) **before** first code edit.
-3. Hand **that file path** (+ Org packs list) into the selected approach as **sole card-truth** (inline: Read file then code; Superpowers: point plan/execute at the file — never the fat chat report).
+3. Hand **that file path** (+ Org packs list) into the selected approach as **sole card-truth and initial seed** (inline: Read file then code; Superpowers: point plan/execute at the file — never the fat chat report, never a prior-run brief).
 4. Apply **Implement policy** for the whole run regardless of path.
 5. When the fix is done, apply **Ship flag**.
 
@@ -294,25 +315,39 @@ Unless already-fixed early-exit. If a Halo case exists and API failed, run the *
 
 **Entry (all implement routes — `/DLB … implement`, bare `implement`, or post-brief go-ahead per **Detect implement**):**
 
-1. **Load thin brief:** **Read** `docs/specs/briefs/{id}.md` (or fallback path). If missing or this is a cold `/DLB <id> implement`, deliver chat report and **write the trimmed file**, then Read it. If same-thread after brief, Read the existing file (rewrite first only if fold-in changed findings). Skip full re-aggregate unless refresh needed.
-2. Set Mode → implement in the file if needed; **do not** regenerate or paste the fat chat findings into the coding turn.
-3. Resolve **Implement path** (infer or pinned — see above).
-4. **Org pack load** — see below. Resolve packs for each write root; select loaders by **glob ∩ Paths**; stamp/refresh the thin-brief **Org packs** row; **Read** only that set **before** the first code edit. Hand the same selected list to Superpowers/planners with the thin file.
-5. **Create working branch(es)** on write roots from clean baseline when needed. Name from ADO work-item type: `bug/{id}-short-slug` for Bug; `feature/{id}-short-slug` for User Story / Feature; otherwise `chore/{id}-short-slug` (or the type’s usual prefix).
-6. Run the selected path with the **implementer brief file** as the only card-truth. DLB does not invent a plan dialect; it only supplies card truth + constitution.
-7. Obey **Implement policy** below for the whole run.
-8. When the fix is done, apply **Ship flag**: default **offer only**; run **Ship chain** only if ship intent is on.
+1. **Working tree:** require a **clean** git status on each write root before first edit (no leftover WIP from another cell). If dirty with unrelated files, stop and ask the user to clean / stash — do not implement over foreign WIP.
+2. **Seed = this-invoke thin brief (hard):**
+   - **Cold** `/DLB <id> implement`: purge stale `{id}` brief paths → aggregate → write **new** trimmed file → **Read** it. Never adopt a file that already existed on disk as the seed.
+   - **Same-thread** after brief: **Read** the file written earlier in **this** chat (rewrite first only if fold-in changed findings). Skip full re-aggregate unless refresh needed.
+   - **First action of coding/planning** is always that Read. Scope, splash, paths, and prove notes come from the file — not from prior chats, prior PRs, or other ids’ briefs.
+3. Set Mode → implement in the file if needed; **do not** regenerate or paste the fat chat findings into the coding turn.
+4. Resolve **Implement path** (infer or pinned — see above).
+5. **Org pack load** — see below. Resolve packs for each write root; select loaders by **glob ∩ Paths**; stamp/refresh the thin-brief **Org packs** row; **Read** only that set **before** the first code edit. Hand the same selected list to Superpowers/planners with the thin file.
+6. **Create working branch(es)** on write roots from clean baseline when needed. Name from ADO work-item type: `bug/{id}-short-slug` for Bug; `feature/{id}-short-slug` for User Story / Feature; otherwise `chore/{id}-short-slug` (or the type’s usual prefix).
+7. Run the selected path with the **implementer brief file** as the **initial seed and only card-truth**. DLB does not invent a plan dialect; it only supplies card truth + constitution.
+8. Obey **Implement policy** below for the whole run.
+9. When the fix is done, apply **Ship flag**: default **offer only**; run **Ship chain** only if ship intent is on.
 
 ### Implement policy (constitution)
 
 Apply for the whole implement run (any path):
 
-- **Minimal** — fix only what the card requires; **no opportunistic fixes**, drive-by refactors, or adjacent bugs.
-- **Splash** — prefer contain; name write roots; do not expand into extra repos/modules without an explicit user Join. Adding a **focused unit test** next to the repo’s existing test project/layout is **in splash** when Prove requires it (not a Join).
+- **Minimal** — **full card, no more.** Satisfy the thin brief / ACs **in full**; do **not** omit hard ACs or defer in-scope paths to “keep it small.” **No** opportunistic fixes, drive-by refactors, or adjacent bugs. Under-delivery is a policy breach, same as gold-plating.
+- **YAGNI** — do not invent unused surface while fixing (extra APIs, flags, abstractions, “we’ll need this later”). Prefer the smallest design that still meets the brief/ACs — not a future-proof redesign.
+- **Splash** — prefer contain; name write roots; do not expand into extra repos/modules without an explicit user Join. Adding a **focused unit test** for an **existing** unit-testable type next to the repo’s existing test project/layout is **in splash** when Prove requires it (not a Join). Inventing a class, struct, interface, or file **only** to host a test is **out of splash** and forbidden (see Prove).
 - **Org packs** — see **Org pack load** below. Soft conventions (T3) only bind when selected via **loader glob ∩ brief Paths** and Read; do not treat pack install as ambient context.
-- **Prove** — see **Prove (inline-first)** below. Fail closed on red. Do not claim done on red or on “no tests existed so I skipped.”
+- **Prove** — see **Prove (inline-first)** below. Fail closed on red. Do not claim done on red or on “no tests existed so I skipped.” Do not invent a type to get a green unit test.
 - **Security** — before claiming done, run a security review on the branch diff (Cursor Task `security-review` when available; else one focused in-thread pass). Medium+ findings: fail closed (fix or stop). **Optional hardening** (defense-in-depth / out-of-tip-scope notes from the scan): see **Optional hardening offer** below — never auto-apply.
 - Ask only on **real blockers** (missing secrets, unresolved product decisions, verify cannot run).
+
+#### Minimal + YAGNI (paired)
+
+| Lens | Guards against | Does **not** mean |
+|------|----------------|-------------------|
+| **Minimal** | Drive-bys, adjacent bugs, gold-plate outside the tip | Shipping a **subset** of ACs / thin-brief scope |
+| **YAGNI** | Speculative helpers, options, abstractions “for later” | Skipping required product behaviour to save lines |
+
+Together: deliver **exactly** the card tip — complete, and nothing beyond it.
 
 ### Org pack load (force Read; do not invent install)
 
@@ -370,17 +405,20 @@ Org packs are **T3 conventions** installed into the write root (`devtools/org/**
 
 ### Prove (inline-first)
 
-DLB is usually **inline** implement; Superpowers is optional/dev-driven. Prove must work **without** SDD — do not wait for a planner to invent tests.
+DLB is usually **inline** implement; Superpowers is optional/dev-driven. Prove must work **without** SDD — do not wait for a planner to invent tests. Prove must **not** invent product types so a unit test can exist.
 
-1. **Detect test stack** on each write root (first match wins per root):
-   - Hub / JS-TS: `vitest` in `package.json` (prefer `test:ci:unit` / `vitest run` with a file or name filter; avoid interactive `--ui`).
-   - Approvals / Platform / .NET: `*Tests*.csproj` or MSTest/NUnit/xUnit under the solution (e.g. `Sicon.Web.WAP.Tests`).
-   - Else: `verify:agent` / `Verify-Agent.ps1` / thin-brief or plan-stated test commands.
+1. **Detect test stack** on each write root — prefer the stack that matches **splash paths**, not a blind first-match when both exist:
+   - If any in-scope splash path is `*.cs` / `*.csproj` and a .NET test project exists → use Approvals / Platform / .NET (`*Tests*.csproj` or MSTest/NUnit/xUnit under the solution, e.g. `Sicon.Web.WAP.Tests`).
+   - Else if any in-scope splash path is `*.ts` / `*.tsx` / `*.js` / `*.jsx` and `vitest` is in `package.json` → use Hub / JS-TS (`test:ci:unit` / `vitest run` with a file or name filter; avoid interactive `--ui`).
+   - Else first present match: Hub / JS-TS (`vitest`) → .NET test projects → `verify:agent` / `Verify-Agent.ps1` / thin-brief or plan-stated test commands.
    - No stack found → note in chat; cannot invent a new test framework. Still fail closed if a named verify script exists and fails.
-2. **Add a test when behaviour is unit-testable** (pure helpers, formatters, mappers, validators, small pure changes). Prefer extracting a tiny testable seam if needed (still minimal). Match existing test style/layout. **Absence of a prior test for this type is not a skip** — create one in the detected project.
-3. **Run splash-overlapping tests** — at least the new/changed tests; also run existing tests that clearly cover splash paths/types when cheap to filter (name/path filter). Full-suite only when already the repo’s verify:agent default or splash is tiny.
-4. **Fail closed** — exit ≠ 0 → fix → re-run. Ad-hoc shell string checks are **not** a substitute when a test stack exists.
-5. Superpowers/SDD: still prefer red–green task split when that path is selected; same detect/add/run rules apply.
+2. **Add a test only when behaviour already lives on a unit-testable seam** — an **existing** pure helper, formatter, mapper, validator, or similar type (including a small pure change to one). Match existing test style/layout. **Absence of a prior test for that existing type is not a skip** — create one in the detected project.
+   - **Forbidden:** a new class, struct, interface, or file created **only** to host a test (e.g. extracting page/grid logic into a `*Policy` / `*Rules` type solely so Prove can unit-test it). That is **out of splash**.
+   - “Extract a tiny testable seam” means reuse or lightly reshape an **already-present** pure seam. It is **not** a license to add a type the product did not need.
+3. **When behaviour is not unit-testable without a new type** (e.g. WebForms page + session + DevExpress controls): say so in chat; prove at the **existing** seam — build the touched project(s) and run splash-overlapping tests that **already** cover those paths/types when they exist. Do **not** fail closed by manufacturing a class.
+4. **Run splash-overlapping tests** — at least any new/changed tests for existing types; also run existing tests that clearly cover splash paths/types when cheap to filter (name/path filter). Full-suite only when already the repo’s verify:agent default or splash is tiny.
+5. **Fail closed** — exit ≠ 0 → fix → re-run. Ad-hoc shell string checks are **not** a substitute when a test stack exists. Do not claim done on red.
+6. Superpowers/SDD: still prefer red–green task split when that path is selected; same detect/add/run rules apply (still no invented types for tests).
 
 ### Optional hardening offer (user-driven; not a must)
 
@@ -425,9 +463,9 @@ For **each write root**:
    - **Must link the DLB card** (the known work-item id for this tip). Prefer create-time `workItemRefs` via ado-core (`New-AdoCorePullRequest -WorkItemIds …`) when available; otherwise link immediately after create (`Link-AdoCoreWorkItemToPullRequest` / equivalent). **Fail closed** if the tip WI is not linked — do not treat “PR opened” as ship-complete without that link.
    - **Bonus — related WIs:** also link work items already related on the DLB card (ADO relations such as Related / Parent / Child / Predecessor / Successor collected in Phase 1). Skip duplicates of the tip id. Soft-fail on related-link errors (warn in chat; still proceed) — only the tip-id link is mandatory.
 5. **Request CodeAnt review**.
-6. **`/pr-clearance <prId>`** (recommended when the plugin/pack is available).
+6. **`/pr-clearance <prId>`** (recommended when the plugin/pack is available). When quiet (or hard-stop finalize), **append `## Clearance quality`** to the implementer brief with CodeAnt proxy counts (findings total / closed without action / fixed / review finish rounds).
 
-Minimal focussed diff only — no opportunistic fixes.
+Full card, no more — complete thin-brief/ACs; no opportunistic extras (Minimal + YAGNI).
 
 ### After implement — ship offer (flag off)
 
@@ -443,8 +481,8 @@ Straight `/DLB <id> implement` skips step 1.
 - ADO primary; Halo supports the card (never the reverse).
 - **ADO reads:** **Dual Resolve** `sicon-ado-core` → `scripts/ado-core.ps1` → verify version ≥ 0.5.0 + WI helpers → `Get-AdoCoreWorkItem -Expand all` + comments (surface `truncated`) → on miss/fail TFS REST → azgit last; no hand-rolled WIT URIs; do not `Read` ado-core.ps1.
 - **Halo:** prefer API; if case id exists and API fails → **list IDE browser tabs first**; matching ticket tab → read and continue (no ask); only if no matching tab → **medium gate** (stop compiling; ask open IDE browser or decline; resume only after). Never re-ask when a matching tab is already open or the user says it is. Never demote that ask to Enrich after a finished brief; never finish the brief while Halo is still unresolved.
-- **Brief:** rich **chat** report (findings + Enrich); **trimmed implementer brief file** (no Enrich / Next / Links followed; single Brief block); stop; user need not say “enrich” — fold-ins update chat + file; Enrich is never a gate option.
-- **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the thin brief file** as **sole** card-truth; do not re-paste the fat chat report; **infer** path; **Org pack load** then Implement policy always applies.
+- **Brief:** rich **chat** report (findings + Enrich); purge stale `{id}` paths then **trimmed implementer brief file** (no Enrich / Next / Links followed; single Brief block); stop; user need not say “enrich” — fold-ins update chat + file; Enrich is never a gate option.
+- **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the this-invoke thin brief file** as **sole** card-truth **and initial seed**; clean tree; do not re-paste the fat chat report; do not reuse prior-run briefs; **infer** path; **Org pack load** then Implement policy always applies.
 - **Org packs:** lock + `devtools/org/**` → select write-root org loaders by **frontmatter glob ∩ thin-brief Paths**, then force **Read** only that set (plus at most one pack overview); do not auto-install; do not flip `alwaysApply`; fail closed only when a **selected** content path is missing; soft-expect absence or no glob hits is not a tip block.
 - Do **not** force SDD on well-defined cards; do **not** ritualistically offer Superpowers on small clear cards.
 - **Ship:** parallel flag; default **offer only** after implement; on ship intent or offer-accept → **Ship message gate** before commit (nineyards-shaped prose: show drafts; **edits** or **`go`**; no AskQuestion); never land with an unconfirmed message; **reuse an open PR for the branch** (`Get-AdoCoreOpenPullRequestsForBranch`) — do not create a duplicate; **ADO PR must link the DLB work-item id** (fail closed); also link related WIs from the card when present (soft-fail); prefer `/pr-clearance` when available.
