@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Infer DevOps Kit Logo</title>
+  <desc id="desc">Straight stem to a town, then a straight middle road and two curved side roads to three towns on one horizon.</desc>
+
+  <rect width="128" height="128" rx="20" fill="#0F172A"/>
+
+  <!-- Stem (straight, short) -->
+  <path
+      d="M64 110 L64 82"
+      fill="none"
+      stroke="#F8FAFC"
+      stroke-width="14"
+      stroke-linecap="round"
+      stroke-linejoin="round"/>
+
+  <!-- Forks: curved sides, straight middle; same end height -->
+  <path
+      d="M64 82 C42 80 28 50 24 28
+         M64 82 L64 28
+         M64 82 C86 80 100 50 104 28"
+      fill="none"
+      stroke="#F8FAFC"
+      stroke-width="14"
+      stroke-linecap="round"
+      stroke-linejoin="round"/>
+
+  <!-- Town: fork -->
+  <circle cx="64" cy="82" r="11" fill="#F59E0B"/>
+  <circle cx="64" cy="82" r="5" fill="#0F172A"/>
+
+  <!-- Town: left -->
+  <circle cx="24" cy="28" r="11" fill="#F59E0B"/>
+  <circle cx="24" cy="28" r="5" fill="#0F172A"/>
+
+  <!-- Town: middle -->
+  <circle cx="64" cy="28" r="11" fill="#F59E0B"/>
+  <circle cx="64" cy="28" r="5" fill="#0F172A"/>
+
+  <!-- Town: right -->
+  <circle cx="104" cy="28" r="11" fill="#F59E0B"/>
+  <circle cx="104" cy="28" r="5" fill="#0F172A"/>
+</svg>
