@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
-$script:AdoCoreLibraryVersion = [version]'0.5.0'
+$script:AdoCoreLibraryVersion = [version]'0.6.0'
 
 function Get-AdoCoreLibraryVersion {
     return $script:AdoCoreLibraryVersion
@@ -820,11 +820,14 @@ function Get-AdoCorePullRequestCommitIds {
         [Parameter(Mandatory = $true)]
         [string]$ApiBase,
         [Parameter(Mandatory = $true)]
-        [int]$PullRequestId
+        [int]$PullRequestId,
+
+        # When set, emit each page as a string[] (no giant in-memory list). Otherwise return all IDs.
+        [switch]$PassThruPages
     )
 
     Assert-AdoCoreTrustedApiBase -ApiBase $ApiBase
-    $commitIds = New-Object 'System.Collections.Generic.List[string]'
+    $commitIds = if ($PassThruPages) { $null } else { New-Object 'System.Collections.Generic.List[string]' }
     $continuationToken = $null
     do {
         $uri = "$ApiBase/pullRequests/$PullRequestId/commits?api-version=7.0"
@@ -843,15 +846,27 @@ function Get-AdoCorePullRequestCommitIds {
         else {
             @()
         }
+        $pageIds = New-Object 'System.Collections.Generic.List[string]'
         foreach ($item in $items) {
             if ($item.PSObject.Properties.Name -contains 'commitId' -and $item.commitId) {
-                [void]$commitIds.Add([string]$item.commitId)
+                [void]$pageIds.Add([string]$item.commitId)
+            }
+        }
+
+        if ($PassThruPages) {
+            # Emit the page as one pipeline object (do not unroll the array).
+            Write-Output -NoEnumerate ([string[]]$pageIds.ToArray())
+        }
+        else {
+            foreach ($commitId in $pageIds) {
+                [void]$commitIds.Add($commitId)
             }
         }
 
         $continuationToken = Get-AdoCoreContinuationToken -Response $response
     } while ($continuationToken)
 
+    if ($PassThruPages) { return }
     return [string[]]$commitIds.ToArray()
 }
 
@@ -882,6 +897,9 @@ function Add-AdoCoreWorkItemArtifactLinks {
         [string]$WitApiBase,
         [Parameter(Mandatory = $true)]
         [object[]]$Links,
+        # Optional caller-owned server-existing URL set; when set, skip the relations GET.
+        # Not grown with newly linked URLs (per-batch dedupe uses $requestedUrls instead).
+        [System.Collections.Generic.HashSet[string]]$ExistingUrls = $null,
         [ValidateRange(0, 1)]
         [int]$DuplicateRetryCount = 0
     )
@@ -889,18 +907,22 @@ function Add-AdoCoreWorkItemArtifactLinks {
     Assert-AdoCoreTrustedApiBase -ApiBase $WitApiBase -Name 'WitApiBase'
     $uri = "$WitApiBase/workitems/$WorkItemId`?api-version=7.0"
     $existingUri = "$WitApiBase/workitems/$WorkItemId`?`$expand=relations&api-version=7.0"
-    $workItem = Invoke-RestMethod -Uri $existingUri -Method Get -UseDefaultCredentials
-    $existingUrls = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
-    $existingRelations = if ($workItem.PSObject.Properties.Name -contains 'relations') { @($workItem.relations) } else { @() }
-    foreach ($relation in $existingRelations) {
-        if ($relation.url) { [void]$existingUrls.Add([string]$relation.url) }
+
+    $urls = $ExistingUrls
+    if ($null -eq $urls) {
+        $urls = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        $workItem = Invoke-RestMethod -Uri $existingUri -Method Get -UseDefaultCredentials
+        $existingRelations = if ($workItem.PSObject.Properties.Name -contains 'relations') { @($workItem.relations) } else { @() }
+        foreach ($relation in $existingRelations) {
+            if ($relation.url) { [void]$urls.Add([string]$relation.url) }
+        }
     }
 
     $requestedUrls = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     $operations = New-Object 'System.Collections.Generic.List[object]'
     foreach ($link in @($Links)) {
         $artifactUrl = [string]$link.ArtifactUrl
-        if (-not $artifactUrl -or -not $requestedUrls.Add($artifactUrl) -or $existingUrls.Contains($artifactUrl)) {
+        if (-not $artifactUrl -or -not $requestedUrls.Add($artifactUrl) -or $urls.Contains($artifactUrl)) {
             continue
         }
         [void]$operations.Add((New-AdoCoreArtifactLinkPatchOperation `
@@ -924,12 +946,15 @@ function Add-AdoCoreWorkItemArtifactLinks {
         if ($message -match 'already exists|RelationAlreadyExists|TF201036|relation already|duplicate') {
             $refreshed = Invoke-RestMethod -Uri $existingUri -Method Get -UseDefaultCredentials
             $refreshedRelations = if ($refreshed.PSObject.Properties.Name -contains 'relations') { @($refreshed.relations) } else { @() }
-            $refreshedUrls = @($refreshedRelations | ForEach-Object { [string]$_.url })
-            $missing = @($Links | Where-Object { $refreshedUrls -notcontains [string]$_.ArtifactUrl })
+            $urls.Clear()
+            foreach ($relation in $refreshedRelations) {
+                if ($relation.url) { [void]$urls.Add([string]$relation.url) }
+            }
+            $missing = @($Links | Where-Object { -not $urls.Contains([string]$_.ArtifactUrl) })
             if ($missing.Count -eq 0) { return $true }
             if ($DuplicateRetryCount -lt 1) {
                 return Add-AdoCoreWorkItemArtifactLinks -WorkItemId $WorkItemId `
-                    -WitApiBase $WitApiBase -Links $missing `
+                    -WitApiBase $WitApiBase -Links $missing -ExistingUrls $urls `
                     -DuplicateRetryCount ($DuplicateRetryCount + 1)
             }
         }
@@ -1046,6 +1071,331 @@ function Add-AdoCoreWorkItemAttachment {
         -FilePaths @($FilePath) -Comment $Comment
 }
 
+function ConvertTo-AdoCoreWorkItemFieldRefName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Field
+    )
+
+    $trimmed = $Field.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmed)) {
+        throw 'Work item field name is empty.'
+    }
+    if ($trimmed -like '/fields/*') {
+        return $trimmed.Substring('/fields/'.Length)
+    }
+    if ($trimmed.StartsWith('/')) {
+        throw "Unsupported work item patch path '$trimmed'. Use a field ref name (e.g. System.Title) or /fields/<ref>."
+    }
+    return $trimmed
+}
+
+function New-AdoCoreWorkItem {
+    <#
+    .SYNOPSIS
+      Create a work item via WIT REST (JSON Patch). Prefer this over hand-rolled create URIs.
+    .DESCRIPTION
+      Field values are passed through as-is — callers own HTML conversion and workflow
+      defaults (area/iteration/tags/state). Optional -PullRequestId links via
+      Link-AdoCoreWorkItemToPullRequest after create.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Title,
+
+        [string]$WorkItemType = 'User Story',
+        [string]$Description = '',
+        [string]$AcceptanceCriteria = '',
+        [hashtable]$Fields = @{},
+        [switch]$AssignToMe,
+        [ValidateRange(0, [int]::MaxValue)]
+        [int]$PullRequestId = 0,
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Title)) {
+        throw 'Title is required.'
+    }
+    if ([string]::IsNullOrWhiteSpace($WorkItemType)) {
+        throw 'WorkItemType is required.'
+    }
+
+    $base = Resolve-AdoCoreWitApiBaseValue -WorkspaceRoot $WorkspaceRoot -WitApiBase $WitApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'WitApiBase'
+
+    if (-not [string]::IsNullOrWhiteSpace($WitApiBase)) {
+        if ($base -notmatch '^(https?://[^/]+)/tfs/([^/]+)/([^/]+)/_apis/wit') {
+            throw "Unsupported WitApiBase for endpoint derivation: $base"
+        }
+        $endpoints = @{
+            ServerUrl  = $Matches[1]
+            Collection = [Uri]::UnescapeDataString([string]$Matches[2])
+            Project    = [Uri]::UnescapeDataString([string]$Matches[3])
+            Repository = $Repository
+            ApiBase    = $null
+        }
+    }
+    else {
+        $wit = Get-AdoCoreWitApiBase -WorkspaceRoot $WorkspaceRoot -Collection $Collection `
+            -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+        $endpoints = $wit.Endpoints
+        if ($Repository) { $endpoints.Repository = $Repository }
+    }
+
+    # Soft-resolve Repository from git before the pre-create PR check (WitApiBase path skips discovery).
+    if ($PullRequestId -gt 0 -and [string]::IsNullOrWhiteSpace([string]$endpoints.Repository)) {
+        try {
+            $defaults = Get-AdoCoreDefaultsFromGitRemote -WorkspaceRoot $WorkspaceRoot
+            if (-not [string]::IsNullOrWhiteSpace([string]$defaults.Repository)) {
+                $endpoints.Repository = [string]$defaults.Repository
+            }
+        }
+        catch {
+            # Soft-fail: leave Repository empty; prerequisite check below still throws if needed.
+        }
+    }
+    if ($PullRequestId -gt 0 -and
+        -not [string]::IsNullOrWhiteSpace([string]$endpoints.Repository) -and
+        [string]::IsNullOrWhiteSpace([string]$endpoints.ApiBase)) {
+        $endpoints.ApiBase = Get-AdoCoreGitApiBase -ServerUrl $endpoints.ServerUrl `
+            -Collection $endpoints.Collection -Project $endpoints.Project `
+            -Repository $endpoints.Repository
+    }
+    if ($PullRequestId -gt 0 -and [string]::IsNullOrWhiteSpace([string]$endpoints.Repository)) {
+        throw 'PullRequestId requires a resolvable Repository (pass -Repository or run inside a git repo with remote.origin.url).'
+    }
+
+    $typeSegment = '$' + [uri]::EscapeDataString($WorkItemType.Trim())
+    $uri = "$base/workitems/${typeSegment}?api-version=7.0"
+
+    $patch = New-Object System.Collections.Generic.List[object]
+    $claimed = @{}
+    $addField = {
+        param([string]$RefName, $Value)
+        if ($null -eq $Value) { return }
+        if ($claimed.ContainsKey($RefName)) { return }
+        $claimed[$RefName] = $true
+        [void]$patch.Add([pscustomobject]@{
+                op    = 'add'
+                path  = "/fields/$RefName"
+                value = $Value
+            })
+    }
+
+    & $addField 'System.Title' $Title
+    if (-not [string]::IsNullOrWhiteSpace($Description)) {
+        & $addField 'System.Description' $Description
+    }
+    if (-not [string]::IsNullOrWhiteSpace($AcceptanceCriteria)) {
+        & $addField 'Microsoft.VSTS.Common.AcceptanceCriteria' $AcceptanceCriteria
+    }
+
+    foreach ($key in @($Fields.Keys)) {
+        $refName = ConvertTo-AdoCoreWorkItemFieldRefName -Field ([string]$key)
+        if ($refName -eq 'System.Title') { continue }
+        if ($refName -eq 'System.Description' -and -not [string]::IsNullOrWhiteSpace($Description)) { continue }
+        if ($refName -eq 'Microsoft.VSTS.Common.AcceptanceCriteria' -and -not [string]::IsNullOrWhiteSpace($AcceptanceCriteria)) { continue }
+        if ($refName -eq 'System.AssignedTo' -and $AssignToMe) { continue }
+        & $addField $refName $Fields[$key]
+    }
+
+    if ($AssignToMe) {
+        $user = Get-AdoCoreAuthenticatedUser -WorkspaceRoot $WorkspaceRoot `
+            -Collection ([string]$endpoints.Collection) -ServerUrl ([string]$endpoints.ServerUrl)
+        $assignedTo = Get-AdoCoreAssignedToFieldValue -User $user
+        if (-not $assignedTo) {
+            throw 'Cannot assign work item: ADO connectionData did not return a usable user identity.'
+        }
+        & $addField 'System.AssignedTo' $assignedTo
+    }
+
+    $body = @($patch.ToArray()) | ConvertTo-Json -Depth 5 -Compress
+    if ($patch.Count -eq 1 -and -not $body.StartsWith('[')) {
+        $body = "[$body]"
+    }
+
+    $workItem = Invoke-RestMethod -Uri $uri -Method Post -Body $body `
+        -ContentType 'application/json-patch+json' -UseDefaultCredentials
+    $workItemId = [int]$workItem.id
+
+    $linkResult = @{
+        LinkedToPr        = $false
+        LinkedCommitCount = 0
+        CommitCount       = 0
+        LinkWarning       = ''
+    }
+    $prUrl = ''
+    if ($PullRequestId -gt 0) {
+        try {
+            if ([string]::IsNullOrWhiteSpace([string]$endpoints.ApiBase)) {
+                $endpoints.ApiBase = Get-AdoCoreGitApiBase -ServerUrl $endpoints.ServerUrl `
+                    -Collection $endpoints.Collection -Project $endpoints.Project `
+                    -Repository $endpoints.Repository
+            }
+            $linkResult = Link-AdoCoreWorkItemToPullRequest -WorkItemId $workItemId `
+                -PullRequestId $PullRequestId -Endpoints $endpoints -WitApiBase $base
+            $prUrl = Get-AdoCorePullRequestWebUrl -Endpoints $endpoints -PullRequestId $PullRequestId
+        }
+        catch {
+            $linkResult = @{
+                LinkedToPr        = $false
+                LinkedCommitCount = 0
+                CommitCount       = 0
+                LinkWarning       = "PR link failed after work item create: $($_.Exception.Message)"
+            }
+            $prUrl = ''
+        }
+    }
+
+    return [pscustomobject]@{
+        WorkItemId        = $workItemId
+        Title             = [string]$workItem.fields.'System.Title'
+        WebUrl            = (Get-AdoCoreWorkItemWebUrl -WorkItemId $workItemId -Endpoints $endpoints)
+        WorkItemType      = $WorkItemType.Trim()
+        PullRequestId     = $PullRequestId
+        PrUrl             = $prUrl
+        LinkedToPr        = [bool]$linkResult.LinkedToPr
+        LinkedCommitCount = [int]$linkResult.LinkedCommitCount
+        CommitCount       = [int]$linkResult.CommitCount
+        LinkWarning       = if ($linkResult.LinkWarning) { [string]$linkResult.LinkWarning } else { '' }
+        AssignedToMe      = $AssignToMe.IsPresent
+        Endpoints         = $endpoints
+        WitApiBase        = $base
+    }
+}
+
+function Update-AdoCoreWorkItem {
+    <#
+    .SYNOPSIS
+      Patch work item fields via WIT REST (JSON Patch add). Prefer this over hand-rolled update URIs.
+    .DESCRIPTION
+      Field values are passed through as-is — callers own HTML conversion. Provide at least one
+      of -Title, -Description, -AcceptanceCriteria, -Fields, or -AssignToMe.
+      For Description/AcceptanceCriteria: omit or $null skips the field; empty string clears it.
+      For Title: omit or $null skips; empty string is rejected (ADO requires System.Title).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$WorkItemId,
+
+        # Untyped so $null stays omit (typed [string] coerces $null to '').
+        $Title = $null,
+        $Description = $null,
+        $AcceptanceCriteria = $null,
+        [hashtable]$Fields = @{},
+        [switch]$AssignToMe,
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $hasFields = $Fields -and @($Fields.Keys).Count -gt 0
+    if ($null -eq $Title -and $null -eq $Description -and $null -eq $AcceptanceCriteria -and -not $hasFields -and -not $AssignToMe) {
+        throw 'Provide -Title, -Description, -AcceptanceCriteria, -Fields, and/or -AssignToMe to update.'
+    }
+    if ($null -ne $Title -and [string]::IsNullOrWhiteSpace([string]$Title)) {
+        throw 'System.Title cannot be cleared; omit -Title to leave it unchanged.'
+    }
+
+    $base = Resolve-AdoCoreWitApiBaseValue -WorkspaceRoot $WorkspaceRoot -WitApiBase $WitApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'WitApiBase'
+
+    if (-not [string]::IsNullOrWhiteSpace($WitApiBase)) {
+        if ($base -notmatch '^(https?://[^/]+)/tfs/([^/]+)/([^/]+)/_apis/wit') {
+            throw "Unsupported WitApiBase for endpoint derivation: $base"
+        }
+        $endpoints = @{
+            ServerUrl  = $Matches[1]
+            Collection = [Uri]::UnescapeDataString([string]$Matches[2])
+            Project    = [Uri]::UnescapeDataString([string]$Matches[3])
+            Repository = $Repository
+            ApiBase    = $null
+        }
+    }
+    else {
+        $wit = Get-AdoCoreWitApiBase -WorkspaceRoot $WorkspaceRoot -Collection $Collection `
+            -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+        $endpoints = $wit.Endpoints
+        if ($Repository) { $endpoints.Repository = $Repository }
+    }
+
+    $uri = "$base/workitems/$WorkItemId`?api-version=7.0"
+    $patch = New-Object System.Collections.Generic.List[object]
+    $claimed = @{}
+    $addField = {
+        param([string]$RefName, $Value)
+        if ($null -eq $Value) { return }
+        if ($claimed.ContainsKey($RefName)) { return }
+        $claimed[$RefName] = $true
+        [void]$patch.Add([pscustomobject]@{
+                op    = 'add'
+                path  = "/fields/$RefName"
+                value = $Value
+            })
+    }
+
+    if ($null -ne $Title) {
+        & $addField 'System.Title' $Title
+    }
+    if ($null -ne $Description) {
+        & $addField 'System.Description' $Description
+    }
+    if ($null -ne $AcceptanceCriteria) {
+        & $addField 'Microsoft.VSTS.Common.AcceptanceCriteria' $AcceptanceCriteria
+    }
+
+    foreach ($key in @($Fields.Keys)) {
+        $refName = ConvertTo-AdoCoreWorkItemFieldRefName -Field ([string]$key)
+        if ($refName -eq 'System.Title' -and $null -ne $Title) { continue }
+        if ($refName -eq 'System.Description' -and $null -ne $Description) { continue }
+        if ($refName -eq 'Microsoft.VSTS.Common.AcceptanceCriteria' -and $null -ne $AcceptanceCriteria) { continue }
+        if ($refName -eq 'System.AssignedTo' -and $AssignToMe) { continue }
+        & $addField $refName $Fields[$key]
+    }
+
+    if ($AssignToMe) {
+        $user = Get-AdoCoreAuthenticatedUser -WorkspaceRoot $WorkspaceRoot `
+            -Collection ([string]$endpoints.Collection) -ServerUrl ([string]$endpoints.ServerUrl)
+        $assignedTo = Get-AdoCoreAssignedToFieldValue -User $user
+        if (-not $assignedTo) {
+            throw 'Cannot assign work item: ADO connectionData did not return a usable user identity.'
+        }
+        & $addField 'System.AssignedTo' $assignedTo
+    }
+
+    if ($patch.Count -lt 1) {
+        throw 'No work item field updates were produced.'
+    }
+
+    $body = @($patch.ToArray()) | ConvertTo-Json -Depth 5 -Compress
+    if ($patch.Count -eq 1 -and -not $body.StartsWith('[')) {
+        $body = "[$body]"
+    }
+
+    $workItem = Invoke-RestMethod -Uri $uri -Method Patch -Body $body `
+        -ContentType 'application/json-patch+json' -UseDefaultCredentials
+
+    return [pscustomobject]@{
+        WorkItemId   = $WorkItemId
+        Title        = [string]$workItem.fields.'System.Title'
+        WebUrl       = (Get-AdoCoreWorkItemWebUrl -WorkItemId $WorkItemId -Endpoints $endpoints)
+        AssignedToMe = $AssignToMe.IsPresent
+        Endpoints    = $endpoints
+        WitApiBase   = $base
+    }
+}
+
 function Link-AdoCoreWorkItemToPullRequest {
     param(
         [Parameter(Mandatory = $true)]
@@ -1063,30 +1413,53 @@ function Link-AdoCoreWorkItemToPullRequest {
     $pullRequest = Get-AdoCorePullRequest -PullRequestId $PullRequestId -ApiBase $metadata.ApiBase
     $prArtifactUrl = Get-AdoCorePullRequestArtifactUrl -PullRequest $pullRequest `
         -RepositoryMetadata $metadata -PullRequestId $PullRequestId
-    $commitIds = Get-AdoCorePullRequestCommitIds -ApiBase $metadata.ApiBase -PullRequestId $PullRequestId
-
-    $links = New-Object 'System.Collections.Generic.List[object]'
-    [void]$links.Add([pscustomobject]@{ ArtifactUrl = $prArtifactUrl; LinkName = 'Pull Request' })
-    foreach ($commitId in $commitIds) {
-        $commitArtifactUrl = "vstfs:///Git/Commit/$($metadata.ProjectId)%2F$($metadata.RepositoryId)%2F$commitId"
-        [void]$links.Add([pscustomobject]@{ ArtifactUrl = $commitArtifactUrl; LinkName = 'Fixed in Commit' })
-    }
 
     $linkedToPr = $false
     $linkedCommitCount = 0
+    $commitCount = 0
     $batchSize = 100
+    $pending = New-Object 'System.Collections.Generic.List[object]'
+    $existingUrls = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     try {
-        for ($start = 0; $start -lt $links.Count; $start += $batchSize) {
-            $batchCount = [Math]::Min($batchSize, $links.Count - $start)
-            $linkBatch = [object[]]$links.GetRange($start, $batchCount)
-            [void](Add-AdoCoreWorkItemArtifactLinks -WorkItemId $WorkItemId -WitApiBase $WitApiBase -Links $linkBatch)
-            if ($start -eq 0) {
-                $linkedToPr = $true
-                $linkedCommitCount += $batchCount - 1
+        Assert-AdoCoreTrustedApiBase -ApiBase $WitApiBase -Name 'WitApiBase'
+        $existingUri = "$WitApiBase/workitems/$WorkItemId`?`$expand=relations&api-version=7.0"
+        $existingWorkItem = Invoke-RestMethod -Uri $existingUri -Method Get -UseDefaultCredentials
+        $existingRelations = if ($existingWorkItem.PSObject.Properties.Name -contains 'relations') { @($existingWorkItem.relations) } else { @() }
+        foreach ($relation in $existingRelations) {
+            if ($relation.url) { [void]$existingUrls.Add([string]$relation.url) }
+        }
+
+        [void](Add-AdoCoreWorkItemArtifactLinks -WorkItemId $WorkItemId -WitApiBase $WitApiBase -Links @(
+                [pscustomobject]@{ ArtifactUrl = $prArtifactUrl; LinkName = 'Pull Request' }
+            ) -ExistingUrls $existingUrls)
+        $linkedToPr = $true
+
+        Get-AdoCorePullRequestCommitIds -ApiBase $metadata.ApiBase -PullRequestId $PullRequestId -PassThruPages |
+            ForEach-Object {
+                foreach ($commitId in @($_)) {
+                    if ([string]::IsNullOrWhiteSpace($commitId)) { continue }
+                    $commitCount++
+                    $commitArtifactUrl = "vstfs:///Git/Commit/$($metadata.ProjectId)%2F$($metadata.RepositoryId)%2F$commitId"
+                    [void]$pending.Add([pscustomobject]@{
+                            ArtifactUrl = $commitArtifactUrl
+                            LinkName    = 'Fixed in Commit'
+                        })
+                    if ($pending.Count -ge $batchSize) {
+                        $linkBatch = [object[]]$pending.ToArray()
+                        [void](Add-AdoCoreWorkItemArtifactLinks -WorkItemId $WorkItemId -WitApiBase $WitApiBase `
+                                -Links $linkBatch -ExistingUrls $existingUrls)
+                        $linkedCommitCount += $pending.Count
+                        $pending.Clear()
+                    }
+                }
             }
-            else {
-                $linkedCommitCount += $batchCount
-            }
+
+        if ($pending.Count -gt 0) {
+            $linkBatch = [object[]]$pending.ToArray()
+            [void](Add-AdoCoreWorkItemArtifactLinks -WorkItemId $WorkItemId -WitApiBase $WitApiBase `
+                    -Links $linkBatch -ExistingUrls $existingUrls)
+            $linkedCommitCount += $pending.Count
+            $pending.Clear()
         }
     }
     catch {
@@ -1101,7 +1474,7 @@ function Link-AdoCoreWorkItemToPullRequest {
     return @{
         LinkedToPr        = $linkedToPr
         LinkedCommitCount = $linkedCommitCount
-        CommitCount       = @($commitIds).Count
+        CommitCount       = $commitCount
         LinkWarning       = $linkWarning
     }
 }
