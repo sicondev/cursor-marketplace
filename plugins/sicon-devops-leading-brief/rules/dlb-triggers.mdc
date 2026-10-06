@@ -3,7 +3,7 @@ description: Invoke DLB (Devops Leading Brief) — brief; implement inline or vi
 alwaysApply: false
 ---
 
-<!-- contrib-managed: devops-leading-brief@0.3.0 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: devops-leading-brief@0.3.3 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
 
 # DLB triggers — Devops Leading Brief
 
@@ -21,8 +21,8 @@ When the user message matches a trigger below, follow **`/DLB`** and **Read** th
 
 Also engage **Orient Q&A** when, in a thread that already ran DLB, the user asks where to start or how to probe the loaded card — answer from context; do not change mode.
 
-**Brief:** Enrich in the report; write thin brief file; stop. Enrich is not a gate option.  
-**Implement:** current agent (inline or Superpowers per skill); then **offer** ship (message gate before any commit/PR) — do not auto-ship.
+**Brief:** Enrich in the report; **purge stale `{id}` brief files then write** thin brief; stop. Enrich is not a gate option.  
+**Implement:** current agent (inline or Superpowers per skill); **seed only from this-invoke thin brief** (never a prior-run file); require clean write-root tree; then **offer** ship (message gate before any commit/PR) — do not auto-ship.
 
 ## When NOT to engage
 
