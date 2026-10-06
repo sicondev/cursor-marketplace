@@ -1,0 +1,26 @@
+---
+description: Invoke IDK (Infer DevOps Kit) — recommend approach; continue proceeds to next step
+alwaysApply: false
+---
+
+<!-- contrib-managed: infer-devops-kit@0.1.2 — source: ai-devtools/contrib/infer-devops-kit/ — prefer PR there; local edits may be overwritten on sync -->
+
+# IDK triggers — Infer DevOps Kit
+
+When the user message matches a trigger below, follow **`/IDK`** and **Read** the IDK skill in full — **Dual Resolve** `sicon-infer-devops-kit` → `skills/infer-devops-kit/SKILL.md` (plugin direct → newest `plugins/marketplaces|cache` bounded → user-pack skills dogfood only if no plugin; never prefer pack). Do **not** load a skill from any other path substring.
+
+## Engage when any
+
+- `/IDK <id>` or `/idk <id>` → **recommend**
+- `/IDK` or `/idk` (bare — then ask for the card number)
+- Clear "infer devops kit" / "IDK" with a card number → **recommend**
+- Frozen card / study sheet asking which implement approach → **recommend**
+- **Same-thread proceed** after an IDK `Recommendation:` in this thread: `continue`, `go ahead`, `yes`, `do it`, `proceed`, `then`, `ok`, `yep`, or path pin `inline` / `dlb` / `lb` / `devops leading brief` / `superpowers` → **proceed** (dispatch per skill; do not re-classify)
+
+**Recommend:** two-line body + `→ continue`. **Proceed:** Inline implement / DLB brief / Superpowers per prior Recommendation (user path pin wins). Never stack DLB + Superpowers.
+
+## When NOT to engage
+
+- Casual mention of a work item without asking for an approach pick
+- Bare `yes` / `continue` when the last turn was **not** an IDK recommend (other gates, Orient, unrelated asks)
+- `/dev-triage`, devops-card creators, or other tools' lanes (unless IDK proceed already dispatched into DLB)

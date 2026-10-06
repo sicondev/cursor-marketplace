@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.32"
+                     "version":  "0.1.33"
                  },
     "plugins":  [
                     {
@@ -68,6 +68,11 @@
                         "name":  "ponytail",
                         "source":  "./plugins/ponytail",
                         "description":  "Lazy senior dev mode. Forces the simplest, shortest solution that actually works: YAGNI, stdlib first, no unrequested abstractions."
+                    },
+                    {
+                        "name":  "sicon-infer-devops-kit",
+                        "source":  "./plugins/sicon-infer-devops-kit",
+                        "description":  "Infer DevOps Kit — Picks DevOps card implement lane (Inline / Devops Leading Brief / Superpowers); continue/go ahead runs that next step."
                     }
                 ]
 }
