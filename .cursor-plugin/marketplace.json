@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.33"
+                     "version":  "0.1.34"
                  },
     "plugins":  [
                     {
@@ -60,11 +60,6 @@
                         "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
                     },
                     {
-                        "name":  "sicon-devops-leading-brief",
-                        "source":  "./plugins/sicon-devops-leading-brief",
-                        "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline or Superpowers; ship offer with nineyards-shaped message gate"
-                    },
-                    {
                         "name":  "ponytail",
                         "source":  "./plugins/ponytail",
                         "description":  "Lazy senior dev mode. Forces the simplest, shortest solution that actually works: YAGNI, stdlib first, no unrequested abstractions."
@@ -73,6 +68,11 @@
                         "name":  "sicon-infer-devops-kit",
                         "source":  "./plugins/sicon-infer-devops-kit",
                         "description":  "Infer DevOps Kit — Picks DevOps card implement lane (Inline / Devops Leading Brief / Superpowers); continue/go ahead runs that next step."
+                    },
+                    {
+                        "name":  "sicon-devops-leading-brief",
+                        "source":  "./plugins/sicon-devops-leading-brief",
+                        "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); ship offer with nineyards-shaped message gate"
                     }
                 ]
 }

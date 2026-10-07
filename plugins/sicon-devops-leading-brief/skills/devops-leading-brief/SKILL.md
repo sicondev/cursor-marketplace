@@ -2,8 +2,8 @@
 name: devops-leading-brief
 description: >-
   Devops Leading Brief (DLB) — ADO card context; brief (findings + Enrich) written
-  to a file; implement is a slot (infer inline vs Superpowers from card/complexity;
-  user may pin) under minimal+YAGNI/splash/prove/security policy. Use for /DLB or, after
+  to a file; implement defaults to inline (Superpowers only when the user pins it)
+  under minimal+YAGNI/splash/prove/security policy. Use for /DLB or, after
   a brief in-thread, bare implement / Orient / evidence drops. Implement always
   seeds from the thin brief written this invoke — never reuse a prior-run brief file.
 disable-model-invocation: true
@@ -12,15 +12,15 @@ disable-model-invocation: true
 # Devops Leading Brief (DLB)
 
 Set **fix context** for an Azure DevOps work item, **persist the brief to a file**,
-then optionally **implement** via whichever path applies (inline in this chat, or
-Superpowers / another planner the user selects). DLB owns the card brief, the brief
+then optionally **implement** — **inline by default**, or Superpowers / another planner
+**only when the user pins that path**. DLB owns the card brief, the brief
 file, and the implement constitution — not the plan dialect.
 
 | Owns | Does not own |
 |------|----------------|
 | ADO/Halo aggregate, findings, Enrich, Orient | Plan dialect (Superpowers SDD steps, etc.) |
-| Brief file (card-truth on disk) | Forcing a particular implement pack |
-| Implement path recommend + policy + optional ship | |
+| Brief file (card-truth on disk) | Auto-engaging Superpowers / TDD / SDD |
+| Implement path (pin or inline) + policy + optional ship | |
 
 ## Purpose (keep this lens)
 
@@ -39,7 +39,7 @@ Only two modes. **Ship is a parallel flag**, not a mode.
 | Mode | Invoke | Depth |
 |------|--------|--------|
 | **Brief** (default) | `/DLB <id>` | Aggregate ADO (+ Halo); findings; **Enrich** asks (agent-side); **write brief file**; stop. User need not say “enrich”. |
-| **Implement** | `/DLB <id> implement` **or**, after a brief in this thread, bare `implement` / `impl` / `and implement` | Brief file as card-truth → **infer Implement path** → run under **Implement policy**. Ask only on **real blockers**. When done: see **Ship flag**. |
+| **Implement** | `/DLB <id> implement` **or**, after a brief in this thread, bare `implement` / `impl` / `and implement` | Brief file as card-truth → **inline** unless user pinned Superpowers → run under **Implement policy**. Ask only on **real blockers**. When done: see **Ship flag**. |
 | **Orient (Q&A)** | User asks after brief / mid-implement | Bearings from loaded context + brief file — does not change mode |
 
 **Detect implement (do not force a re-slash):**
@@ -104,22 +104,24 @@ GET https://tfs.sicon.co.uk:8443/tfs/SiconProductsGit/Sicon/_apis/wit/workitems/
 GET https://tfs.sicon.co.uk:8443/tfs/SiconProductsGit/Sicon/_apis/wit/workitems/{id}/comments?api-version=7.0-preview.3
 ```
 
-### Halo (prefer API; medium gate on fail)
+### Halo (prefer API; browser navigate on fail)
 
 When ADO has a Halo case id (`Custom.CaseNumber`, Halo PSA link, etc.):
 
 1. **Prefer Halo API** — use it when credentials/config work. That is the durable path. On success, fold Halo into the brief and continue (no gate).
-2. **API fail / unavailable** (401, missing env, timeout, etc.) → **check IDE browser tabs before any ask**:
+2. **API fail / unavailable** (401, missing env, timeout, etc.) → **navigate the IDE browser yourself. Do not ask the user to open Halo.**
    - **Stop compiling the brief** (no invented findings, no code-anchor walk, no Enrich, no brief file yet) until Halo is read or declined.
-   - **Mandatory first action:** list Cursor IDE browser tabs for a logged-in tab whose URL matches the ticket (`https://halo.sicon.co.uk/ticket?id={case}` or equivalent path/query).
-   - **Matching tab already open** → treat the gate as **resolved on this turn**. Lock → read via the interim browser bridge → fold Halo → resume Phase 1. **Do not ask. Do not yield. Do not tell the user to open what is already open.**
-   - **No matching tab** → **medium gate — yield the turn now**: tell the user Halo could not be loaded via API; give `https://halo.sicon.co.uk/ticket?id={case}`; ask them to open/focus that ticket in the Cursor IDE browser **or** decline (`continue` / `skip Halo` / `decline`); end the turn. Do **not** pretend Halo was read.
-3. **After the gate resolves (next turn or same-turn tab hit):**
-   - **Browser available** (matching IDE tab, or user just opened one) → read Halo via the interim browser bridge, then resume Phase 1 (findings + brief file). Prefer API again when auth exists later — browser is fallback, not the long-term design.
-   - **User declines / skip Halo** → record Halo: declined/skipped; resume Phase 1 without Halo.
-   - **User pushback that the tab is already open** (“browser is open”, “why are you asking”, screenshot of Halo, etc.) → **list tabs and read**; never re-ask the same gate.
+   - Ticket URL is always `https://halo.sicon.co.uk/ticket?id={case}` (known path — just go there).
+   - **Mandatory first action:** `browser_tabs` `list`. Then:
+     - Prefer an existing Cursor IDE tab whose host is `halo.sicon.co.uk` (or `*.halo.sicon.co.uk`) — Home `/` counts. Lock it and **navigate that same tab** to the ticket URL (do not open a new tab).
+     - Else prefer **any** existing IDE browser tab (any host). Lock it and navigate to the ticket URL.
+     - Else `browser_navigate` (creates/uses the Cursor IDE browser). Do **not** yield waiting for the user to open a tab.
+   - **Login prompt** → wait/poll (snapshot or short CDP checks). Do **not** yield a “please log in / please open Halo” gate. If login is still up after a reasonable wait (~30s), note Halo: login pending and **continue the brief without Halo** (do not block Phase 1). Resume Halo on a later turn if the session becomes readable.
+   - On ticket page readable → fold Halo → resume Phase 1. **Do not ask. Do not yield. Do not tell the user to open what the agent can navigate.**
+   - **Browser tools missing / navigate throws** → **medium gate — yield**: give the ticket URL; ask open-in-IDE-browser **or** decline. This is the **only** Halo yield besides explicit user decline.
+3. **User declines / skip Halo** (`continue` / `skip Halo` / `decline`) → record Halo: declined/skipped; resume Phase 1 without Halo. Never re-ask when a Halo tab is already open or the user says the browser is open.
 4. **No Halo case on the ADO card** → skip Halo; no gate.
-5. Medium gate is a **pause only when no matching tab exists**, not a permanent block — the brief always continues after open-or-decline. Never bury the gate only under Enrich after a finished brief. Never ask the user to open a ticket that `browser_tabs` already shows.
+5. Never bury Halo under Enrich after a finished brief. Never finish the brief while a Halo navigate is still in progress this turn. Never ask the user to open Halo when `browser_tabs` shows any tab or when `browser_navigate` is available.
 
 ## Phase 1 — Chat report (human)
 
@@ -151,7 +153,7 @@ off (default / offer only) | on (user asked to ship/commit/PR)
 
 ## Links followed
 - **ADO related:** … (ids + link type — also used at ship to link related WIs to the PR)
-- **Halo:** case … — API ok | API fail → browser recommended (pending/read) | declined/skipped | none on card
+- **Halo:** case … — API ok | API fail → IDE browser navigated (read / login-pending skipped) | declined/skipped | none on card
 - **Attachments:** … (no .eml/.msg)
 
 ## Sources used
@@ -192,7 +194,7 @@ If such material is implied and unreachable, **ask once** here with a short list
 
 ## Next
 - **Brief:** purge stale `{id}` brief paths, then write implementer brief file; stop — user may drop evidence anytime or say **implement** (no re-slash required)
-- **Implement:** rewrite brief file if findings changed; infer Implement path; code with **this-invoke** file as seed + card-truth (never a leftover prior-run brief)
+- **Implement:** rewrite brief file if findings changed; **inline** (or user-pinned Superpowers); code with **this-invoke** file as seed + card-truth (never a leftover prior-run brief)
 ```
 
 ## Brief file (implementer card-truth)
@@ -277,41 +279,26 @@ After the chat report (unless already-fixed early-exit):
 
 ## Implement path (slot)
 
-**Implement** is a placeholder for whichever coding approach applies — not always “this agent keeps typing,” and not always an external pack.
+**Default = inline.** Superpowers (or another planner) only when the **user pins** it. Do **not** infer Superpowers from install, complexity, or “tests needed.”
 
-### Detect availability
+### Resolve path
 
-- **User pinned a path** — `inline`, `superpowers`, `SDD`, `writing-plans` / `executing-plans`, or another planner → **use that**; skip inference.
-- **Superpowers present** — profile/workspace has Superpowers skills (e.g. `writing-plans`, `executing-plans`, `subagent-driven-development`) or the user already uses them in this thread.
-- Otherwise only **inline** is available → recommend and run inline (no fake Superpowers choice).
-
-### Infer recommendation (do not force; do not always default inline)
-
-When the user did **not** pin a path, **infer one recommendation** from **card completeness**, **code/splash complexity**, and **whether Superpowers is present**. State it in **one line of why**, then proceed on that path (Ask only when the call is genuinely close — see below).
-
-| Lean **inline** when… | Lean **Superpowers** when (and only if present)… |
-|------------------------|--------------------------------------------------|
-| Symptom + anchors clear; small splash (one write root / few files) | Ambiguous card, large unknown surface, or multi-repo without a closed plan |
-| Clear Fix-in / well-scoped “how to fix” already in the brief | Needs a written plan, red–green task split, or parallel subagents |
-| Tiny / already-specified change | Complexity or gaps make free-form coding likely to thrash |
-
-- Do **not** ritualistically offer Superpowers on well-defined small cards just because it is installed.
-- Do **not** force SDD / Superpowers when inference says inline.
-- If Superpowers is **absent**, never recommend it.
-
-**Ask once** (AskQuestion or one short prose choice) only when **both** paths are live **and** completeness vs complexity leave the call close. If the user already said `implement inline` / `implement with superpowers`, skip ask and inference.
+- **User pinned Superpowers / planner** — `superpowers`, `SDD`, `writing-plans` / `executing-plans`, `implement with superpowers`, or another named planner → **use that**.
+- **User pinned `inline`** — or no pin → **inline**.
+- **Hard fence (inline):** do **not** Read or invoke Superpowers skills (`test-driven-development`, `writing-plans`, `executing-plans`, `subagent-driven-development`, `brainstorming`, etc.). Prove stays DLB Prove — no SP TDD ceremony.
+- Do **not** ask inline vs Superpowers. Do **not** offer Superpowers because it is installed.
 
 ### Run
 
 1. **Read** the trimmed implementer brief file written this invoke (cold path: purge → write first). Do **not** require a re-slash. Do **not** seed from a pre-existing on-disk brief.
 2. **Org pack load** for each write root (resolve packs → **glob ∩ brief Paths** → stamp thin brief → **Read** only the selected set) **before** first code edit.
-3. Hand **that file path** (+ Org packs list) into the selected approach as **sole card-truth and initial seed** (inline: Read file then code; Superpowers: point plan/execute at the file — never the fat chat report, never a prior-run brief).
+3. Hand **that file path** (+ Org packs list) into the selected approach as **sole card-truth and initial seed** (inline: Read file then code; Superpowers when pinned: point plan/execute at the file — never the fat chat report, never a prior-run brief).
 4. Apply **Implement policy** for the whole run regardless of path.
 5. When the fix is done, apply **Ship flag**.
 
 ## Implement mode
 
-Unless already-fixed early-exit. If a Halo case exists and API failed, run the **medium gate** (yield — do not finish the brief or start coding until open-or-decline). Coding may proceed only after the gate resolves; without Halo if the user declined.
+Unless already-fixed early-exit. If a Halo case exists and API failed, **navigate the IDE browser to the ticket** (do not yield for the user to open Halo). Coding may proceed after Halo is read, after login wait times out (brief without Halo), or if the user declined.
 
 **Entry (all implement routes — `/DLB … implement`, bare `implement`, or post-brief go-ahead per **Detect implement**):**
 
@@ -321,8 +308,8 @@ Unless already-fixed early-exit. If a Halo case exists and API failed, run the *
    - **Same-thread** after brief: **Read** the file written earlier in **this** chat (rewrite first only if fold-in changed findings). Skip full re-aggregate unless refresh needed.
    - **First action of coding/planning** is always that Read. Scope, splash, paths, and prove notes come from the file — not from prior chats, prior PRs, or other ids’ briefs.
 3. Set Mode → implement in the file if needed; **do not** regenerate or paste the fat chat findings into the coding turn.
-4. Resolve **Implement path** (infer or pinned — see above).
-5. **Org pack load** — see below. Resolve packs for each write root; select loaders by **glob ∩ Paths**; stamp/refresh the thin-brief **Org packs** row; **Read** only that set **before** the first code edit. Hand the same selected list to Superpowers/planners with the thin file.
+4. Resolve **Implement path** (inline unless user pinned Superpowers — see above).
+5. **Org pack load** — see below. Resolve packs for each write root; select loaders by **glob ∩ Paths**; stamp/refresh the thin-brief **Org packs** row; **Read** only that set **before** the first code edit. Hand the same selected list to Superpowers/planners with the thin file **only when that path is pinned**.
 6. **Create working branch(es)** on write roots from clean baseline when needed. Name from ADO work-item type: `bug/{id}-short-slug` for Bug; `feature/{id}-short-slug` for User Story / Feature; otherwise `chore/{id}-short-slug` (or the type’s usual prefix).
 7. Run the selected path with the **implementer brief file** as the **initial seed and only card-truth**. DLB does not invent a plan dialect; it only supplies card truth + constitution.
 8. Obey **Implement policy** below for the whole run.
@@ -405,7 +392,7 @@ Org packs are **T3 conventions** installed into the write root (`devtools/org/**
 
 ### Prove (inline-first)
 
-DLB is usually **inline** implement; Superpowers is optional/dev-driven. Prove must work **without** SDD — do not wait for a planner to invent tests. Prove must **not** invent product types so a unit test can exist.
+Prove is **DLB’s** test duty on the inline path. Superpowers is pin-only — do not load SP TDD to satisfy Prove. Prove must work **without** SDD — do not wait for a planner to invent tests. Prove must **not** invent product types so a unit test can exist.
 
 1. **Detect test stack** on each write root — prefer the stack that matches **splash paths**, not a blind first-match when both exist:
    - If any in-scope splash path is `*.cs` / `*.csproj` and a .NET test project exists → use Approvals / Platform / .NET (`*Tests*.csproj` or MSTest/NUnit/xUnit under the solution, e.g. `Sicon.Web.WAP.Tests`).
@@ -418,7 +405,7 @@ DLB is usually **inline** implement; Superpowers is optional/dev-driven. Prove m
 3. **When behaviour is not unit-testable without a new type** (e.g. WebForms page + session + DevExpress controls): say so in chat; prove at the **existing** seam — build the touched project(s) and run splash-overlapping tests that **already** cover those paths/types when they exist. Do **not** fail closed by manufacturing a class.
 4. **Run splash-overlapping tests** — at least any new/changed tests for existing types; also run existing tests that clearly cover splash paths/types when cheap to filter (name/path filter). Full-suite only when already the repo’s verify:agent default or splash is tiny.
 5. **Fail closed** — exit ≠ 0 → fix → re-run. Ad-hoc shell string checks are **not** a substitute when a test stack exists. Do not claim done on red.
-6. Superpowers/SDD: still prefer red–green task split when that path is selected; same detect/add/run rules apply (still no invented types for tests).
+6. When Superpowers/SDD is **user-pinned**: still prefer red–green task split; same detect/add/run rules apply (still no invented types for tests).
 
 ### Optional hardening offer (user-driven; not a must)
 
@@ -480,11 +467,11 @@ Straight `/DLB <id> implement` skips step 1.
 
 - ADO primary; Halo supports the card (never the reverse).
 - **ADO reads:** **Dual Resolve** `sicon-ado-core` → `scripts/ado-core.ps1` → verify version ≥ 0.5.0 + WI helpers → `Get-AdoCoreWorkItem -Expand all` + comments (surface `truncated`) → on miss/fail TFS REST → azgit last; no hand-rolled WIT URIs; do not `Read` ado-core.ps1.
-- **Halo:** prefer API; if case id exists and API fails → **list IDE browser tabs first**; matching ticket tab → read and continue (no ask); only if no matching tab → **medium gate** (stop compiling; ask open IDE browser or decline; resume only after). Never re-ask when a matching tab is already open or the user says it is. Never demote that ask to Enrich after a finished brief; never finish the brief while Halo is still unresolved.
+- **Halo:** prefer API; if case id exists and API fails → **navigate the IDE browser to the known ticket URL** (reuse Halo tab, else any tab, else `browser_navigate`). **Do not ask the user to open Halo.** Login prompt → wait; if still login, continue brief without Halo. Yield only if browser tools are missing / navigate throws, or the user declines. Never demote that ask to Enrich after a finished brief.
 - **Brief:** rich **chat** report (findings + Enrich); purge stale `{id}` paths then **trimmed implementer brief file** (no Enrich / Next / Links followed; single Brief block); stop; user need not say “enrich” — fold-ins update chat + file; Enrich is never a gate option.
-- **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the this-invoke thin brief file** as **sole** card-truth **and initial seed**; clean tree; do not re-paste the fat chat report; do not reuse prior-run briefs; **infer** path; **Org pack load** then Implement policy always applies.
+- **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the this-invoke thin brief file** as **sole** card-truth **and initial seed**; clean tree; do not re-paste the fat chat report; do not reuse prior-run briefs; **inline** unless user pinned Superpowers; **Org pack load** then Implement policy always applies.
 - **Org packs:** lock + `devtools/org/**` → select write-root org loaders by **frontmatter glob ∩ thin-brief Paths**, then force **Read** only that set (plus at most one pack overview); do not auto-install; do not flip `alwaysApply`; fail closed only when a **selected** content path is missing; soft-expect absence or no glob hits is not a tip block.
-- Do **not** force SDD on well-defined cards; do **not** ritualistically offer Superpowers on small clear cards.
+- **Hard fence:** do **not** infer, offer, or auto-load Superpowers / SDD / TDD on the inline path — pin only.
 - **Ship:** parallel flag; default **offer only** after implement; on ship intent or offer-accept → **Ship message gate** before commit (nineyards-shaped prose: show drafts; **edits** or **`go`**; no AskQuestion); never land with an unconfirmed message; **reuse an open PR for the branch** (`Get-AdoCoreOpenPullRequestsForBranch`) — do not create a duplicate; **ADO PR must link the DLB work-item id** (fail closed); also link related WIs from the card when present (soft-fail); prefer `/pr-clearance` when available.
 - Branch prefix follows work-item type (`bug/` / `feature/` / `chore/…`).
 - No opportunistic fixes anywhere in the chain.

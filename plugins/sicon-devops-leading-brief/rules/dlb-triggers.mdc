@@ -1,9 +1,9 @@
 ---
-description: Invoke DLB (Devops Leading Brief) — brief; implement inline or via Superpowers per skill
+description: Invoke DLB (Devops Leading Brief) — brief; implement inline by default (Superpowers only when pinned)
 alwaysApply: false
 ---
 
-<!-- contrib-managed: devops-leading-brief@0.3.3 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: devops-leading-brief@0.3.6 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
 
 # DLB triggers — Devops Leading Brief
 
@@ -12,7 +12,7 @@ When the user message matches a trigger below, follow **`/DLB`** and **Read** th
 ## Engage when any
 
 - `/DLB <id>` or `/dlb <id>` → **brief** mode
-- `/DLB <id> implement` / `/DLB <id> and implement` / close variants → **implement** (infer inline vs Superpowers per skill; user may pin)
+- `/DLB <id> implement` / `/DLB <id> and implement` / close variants → **implement** (inline unless user pins Superpowers)
 - `/DLB` or `/dlb` (bare — then ask for the card number)
 - `load devops card <cardnumber> for context` → **brief** unless they also say implement / just do it / don't ask me
 - `I want to look at devops card <cardnumber> please fetch it for context` → **brief**
@@ -22,7 +22,7 @@ When the user message matches a trigger below, follow **`/DLB`** and **Read** th
 Also engage **Orient Q&A** when, in a thread that already ran DLB, the user asks where to start or how to probe the loaded card — answer from context; do not change mode.
 
 **Brief:** Enrich in the report; **purge stale `{id}` brief files then write** thin brief; stop. Enrich is not a gate option.  
-**Implement:** current agent (inline or Superpowers per skill); **seed only from this-invoke thin brief** (never a prior-run file); require clean write-root tree; then **offer** ship (message gate before any commit/PR) — do not auto-ship.
+**Implement:** **inline** unless the user pins Superpowers; **seed only from this-invoke thin brief** (never a prior-run file); require clean write-root tree; then **offer** ship (message gate before any commit/PR) — do not auto-ship. Hard fence: do not auto-load Superpowers / SDD / TDD.
 
 ## When NOT to engage
 

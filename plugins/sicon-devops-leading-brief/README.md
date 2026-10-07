@@ -1,6 +1,6 @@
 # Sicon Devops Leading Brief
 
-Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline or Superpowers; ship offer with nineyards-shaped message gate
+Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); ship offer with nineyards-shaped message gate
 
 Install from the Sicon Team Marketplace, then use `/DLB` in chat.
 
@@ -20,7 +20,7 @@ This pack’s `content/` is README-only; adapters carry the Cursor surfaces. Pre
 | Command | Purpose |
 |---------|---------|
 | `/DLB <id>` | Brief — findings + Enrich; write thin brief file; stop |
-| `/DLB <id> implement` | Implement — infer inline vs Superpowers; ship offer by default |
+| `/DLB <id> implement` | Implement — **inline** (Superpowers only if pinned); ship offer by default |
 
 ## Reliability
 
