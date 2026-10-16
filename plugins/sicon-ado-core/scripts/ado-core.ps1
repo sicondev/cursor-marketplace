@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
-$script:AdoCoreLibraryVersion = [version]'0.6.0'
+$script:AdoCoreLibraryVersion = [version]'0.7.0'
 
 function Get-AdoCoreLibraryVersion {
     return $script:AdoCoreLibraryVersion
@@ -1096,8 +1096,8 @@ function New-AdoCoreWorkItem {
       Create a work item via WIT REST (JSON Patch). Prefer this over hand-rolled create URIs.
     .DESCRIPTION
       Field values are passed through as-is — callers own HTML conversion and workflow
-      defaults (area/iteration/tags/state). Optional -PullRequestId links via
-      Link-AdoCoreWorkItemToPullRequest after create.
+      defaults (area/iteration/tags/state).       Optional -PullRequestId links the pull request after create
+      (Link-AdoCoreWorkItemToPullRequest). Commit links are off unless -LinkCommits.
     #>
     param(
         [Parameter(Mandatory = $true)]
@@ -1110,6 +1110,7 @@ function New-AdoCoreWorkItem {
         [switch]$AssignToMe,
         [ValidateRange(0, [int]::MaxValue)]
         [int]$PullRequestId = 0,
+        [switch]$LinkCommits,
         [string]$WorkspaceRoot = '',
         [string]$WitApiBase = '',
         [string]$Collection = '',
@@ -1239,7 +1240,8 @@ function New-AdoCoreWorkItem {
                     -Repository $endpoints.Repository
             }
             $linkResult = Link-AdoCoreWorkItemToPullRequest -WorkItemId $workItemId `
-                -PullRequestId $PullRequestId -Endpoints $endpoints -WitApiBase $base
+                -PullRequestId $PullRequestId -Endpoints $endpoints -WitApiBase $base `
+                -LinkCommits:$LinkCommits
             $prUrl = Get-AdoCorePullRequestWebUrl -Endpoints $endpoints -PullRequestId $PullRequestId
         }
         catch {
@@ -1405,7 +1407,9 @@ function Link-AdoCoreWorkItemToPullRequest {
         [Parameter(Mandatory = $true)]
         $Endpoints,
         [Parameter(Mandatory = $true)]
-        [string]$WitApiBase
+        [string]$WitApiBase,
+        # Off by default so a later re-link does not stamp every PR commit onto the work item.
+        [switch]$LinkCommits
     )
 
     $warnings = New-Object 'System.Collections.Generic.List[string]'
@@ -1434,41 +1438,53 @@ function Link-AdoCoreWorkItemToPullRequest {
             ) -ExistingUrls $existingUrls)
         $linkedToPr = $true
 
-        Get-AdoCorePullRequestCommitIds -ApiBase $metadata.ApiBase -PullRequestId $PullRequestId -PassThruPages |
-            ForEach-Object {
-                foreach ($commitId in @($_)) {
-                    if ([string]::IsNullOrWhiteSpace($commitId)) { continue }
-                    $commitCount++
-                    $commitArtifactUrl = "vstfs:///Git/Commit/$($metadata.ProjectId)%2F$($metadata.RepositoryId)%2F$commitId"
-                    [void]$pending.Add([pscustomobject]@{
-                            ArtifactUrl = $commitArtifactUrl
-                            LinkName    = 'Fixed in Commit'
-                        })
-                    if ($pending.Count -ge $batchSize) {
-                        $linkBatch = [object[]]$pending.ToArray()
-                        [void](Add-AdoCoreWorkItemArtifactLinks -WorkItemId $WorkItemId -WitApiBase $WitApiBase `
-                                -Links $linkBatch -ExistingUrls $existingUrls)
-                        $linkedCommitCount += $pending.Count
-                        $pending.Clear()
+        if ($LinkCommits) {
+            Get-AdoCorePullRequestCommitIds -ApiBase $metadata.ApiBase -PullRequestId $PullRequestId -PassThruPages |
+                ForEach-Object {
+                    foreach ($commitId in @($_)) {
+                        if ([string]::IsNullOrWhiteSpace($commitId)) { continue }
+                        $commitCount++
+                        $commitArtifactUrl = "vstfs:///Git/Commit/$($metadata.ProjectId)%2F$($metadata.RepositoryId)%2F$commitId"
+                        [void]$pending.Add([pscustomobject]@{
+                                ArtifactUrl = $commitArtifactUrl
+                                LinkName    = 'Fixed in Commit'
+                            })
+                        if ($pending.Count -ge $batchSize) {
+                            $linkBatch = [object[]]$pending.ToArray()
+                            [void](Add-AdoCoreWorkItemArtifactLinks -WorkItemId $WorkItemId -WitApiBase $WitApiBase `
+                                    -Links $linkBatch -ExistingUrls $existingUrls)
+                            $linkedCommitCount += $pending.Count
+                            $pending.Clear()
+                        }
                     }
                 }
-            }
 
-        if ($pending.Count -gt 0) {
-            $linkBatch = [object[]]$pending.ToArray()
-            [void](Add-AdoCoreWorkItemArtifactLinks -WorkItemId $WorkItemId -WitApiBase $WitApiBase `
-                    -Links $linkBatch -ExistingUrls $existingUrls)
-            $linkedCommitCount += $pending.Count
-            $pending.Clear()
+            if ($pending.Count -gt 0) {
+                $linkBatch = [object[]]$pending.ToArray()
+                [void](Add-AdoCoreWorkItemArtifactLinks -WorkItemId $WorkItemId -WitApiBase $WitApiBase `
+                        -Links $linkBatch -ExistingUrls $existingUrls)
+                $linkedCommitCount += $pending.Count
+                $pending.Clear()
+            }
         }
     }
     catch {
-        [void]$warnings.Add("PR and commit links failed after linking $linkedCommitCount commit(s): $($_.Exception.Message)")
+        if ($LinkCommits) {
+            [void]$warnings.Add("PR and commit links failed after linking $linkedCommitCount commit(s): $($_.Exception.Message)")
+        }
+        else {
+            [void]$warnings.Add("PR link failed: $($_.Exception.Message)")
+        }
     }
 
     $linkWarning = if ($warnings.Count -gt 0) { $warnings -join ' ' } else { '' }
     if (-not $linkedToPr -and $linkedCommitCount -eq 0 -and -not $linkWarning) {
-        $linkWarning = 'Work item was not linked to the pull request or its commits. Link it manually.'
+        if ($LinkCommits) {
+            $linkWarning = 'Work item was not linked to the pull request or its commits. Link it manually.'
+        }
+        else {
+            $linkWarning = 'Work item was not linked to the pull request. Link it manually.'
+        }
     }
 
     return @{
