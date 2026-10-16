@@ -16,7 +16,7 @@ ADO Core owns generic operations:
 - Resolve authenticated-user metadata
 - Get work items and comments
 - Create and update work items (`New-AdoCoreWorkItem` / `Update-AdoCoreWorkItem`)
-- Link work items to pull requests and commits
+- Link work items to pull requests; optionally commits via `-LinkCommits`
 - Attach files to work items
 - Escape and execute Wiql queries
 

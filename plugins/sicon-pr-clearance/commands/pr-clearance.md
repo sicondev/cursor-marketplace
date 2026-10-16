@@ -189,9 +189,12 @@ If the specialist returns `ask` again on the same issue, Human once more. New `g
 Commit message:
 
 ```text
-fix: clear review findings on PR #<id>
+fix: clear review findings on PR <id>
 
 <one sentence: what this batch changed>
 ```
+
+Do **not** put `#` before the PR id. ADO commit-mention linking treats `#N` as a work item id.
+Do **not** put work-item `#NNNNN` in clearance commits.
 
 No `Co-authored-by`. No email addresses.

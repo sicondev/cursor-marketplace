@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.35"
+                     "version":  "0.1.36"
                  },
     "plugins":  [
                     {
@@ -33,11 +33,6 @@
                         "name":  "sicon-fact-find",
                         "source":  "./plugins/sicon-fact-find",
                         "description":  "Neutral, read-only exploratory enquiry via /fact-find, with an optional topic"
-                    },
-                    {
-                        "name":  "sicon-ado-core",
-                        "source":  "./plugins/sicon-ado-core",
-                        "description":  "Shared Azure DevOps Git, pull-request, and work-item library for other Sicon plugins (no slash command)"
                     },
                     {
                         "name":  "sicon-git-core",
@@ -68,6 +63,11 @@
                         "name":  "sicon-devops-leading-brief",
                         "source":  "./plugins/sicon-devops-leading-brief",
                         "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance"
+                    },
+                    {
+                        "name":  "sicon-ado-core",
+                        "source":  "./plugins/sicon-ado-core",
+                        "description":  "Shared Azure DevOps Git, pull-request, and work-item library for other Sicon plugins (no slash command)"
                     },
                     {
                         "name":  "sicon-pr-clearance",

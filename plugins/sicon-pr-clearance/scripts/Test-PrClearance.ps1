@@ -340,7 +340,7 @@ try {
     }
     Import-PrClearanceBindForTest -Config (Get-PrClearanceBindConfig -PackRoot $packRoot)
     Set-Content -LiteralPath (Join-Path $repo 'fix.txt') -Value 'fixed' -Encoding UTF8
-    New-GitCoreCommit -RepoRoot $repo -Message "fix: clear review findings on PR #9`n`nAdd fix.txt" -Path @('fix.txt')
+    New-GitCoreCommit -RepoRoot $repo -Message "fix: clear review findings on PR 9`n`nAdd fix.txt" -Path @('fix.txt')
     Push-GitCore -RepoRoot $repo
     Complete-ReviewFinding -Finding ([pscustomobject]@{ Id = 't2'; Number = 1; Path = 'fix.txt'; Line = '1'; Comment = 'add file' }) `
         -Disposition fixed -Reply '**Issue:** add file`n**Fix:** added' -PullRequestId 9
