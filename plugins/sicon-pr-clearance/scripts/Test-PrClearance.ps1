@@ -136,14 +136,24 @@ Assert-Equal 'act' (Get-PrClearanceNextAction -State finished_this_sha -Quiet:$f
 Assert-Equal 'act' (Get-PrClearanceNextAction -State finished_this_sha -Quiet:$false -ActBatchCount 9).action 'count 9 → act'
 Assert-Equal 'finalize_max_batches' (Get-PrClearanceNextAction -State finished_this_sha -Quiet:$false -ActBatchCount 10).action 'count 10 → finalize_max_batches'
 Assert-Equal 'finalize_timeout' (Get-PrClearanceNextAction -State none -Quiet:$false -ActBatchCount 0 -LastWaitTimedOut).action 'timeout wins'
-Assert-Equal 'request_and_wait' (Get-PrClearanceNextAction -State in_flight -Quiet:$false -ActBatchCount 0 -AfterPush).action 'after push kicks even if leftover in_flight'
-Assert-Equal 'finalize_timeout' (Get-PrClearanceNextAction -State in_flight -Quiet:$false -ActBatchCount 0 -AfterPush -LastWaitTimedOut).action 'timeout still wins over after push'
-Assert-Equal 'act' (Get-PrClearanceNextAction -State none -FirstInteraction -FindingCount 2 -ActBatchCount 0).action 'first pass with findings acts without a kick'
-Assert-Equal 'act' (Get-PrClearanceNextAction -State in_flight -FirstInteraction -FindingCount 1 -ActBatchCount 0).action 'first pass findings win over leftover in_flight'
-Assert-Equal 'request_and_wait' (Get-PrClearanceNextAction -State none -FirstInteraction -FindingCount 0 -ActBatchCount 0).action 'first pass empty findings kicks once'
+Assert-equal 'wait' (Get-PrClearanceNextAction -State in_flight -Quiet:$false -ActBatchCount 0 -AfterPush).action 'after push waits when tip already in_flight'
+Assert-equal 'finalize_quiet' (Get-PrClearanceNextAction -State finished_this_sha -Quiet -ActBatchCount 0 -AfterPush).action 'after push quiet when tip already finished'
+Assert-equal 'act' (Get-PrClearanceNextAction -State finished_this_sha -Quiet:$false -FindingCount 1 -ActBatchCount 0 -AfterPush).action 'after push acts on findings when tip already finished'
+Assert-equal 'request_and_wait' (Get-PrClearanceNextAction -State finished_stale_sha -Quiet:$false -ActBatchCount 0 -AfterPush).action 'after push kicks when tip review is stale'
+Assert-equal 'finalize_timeout' (Get-PrClearanceNextAction -State in_flight -Quiet:$false -ActBatchCount 0 -AfterPush -LastWaitTimedOut).action 'timeout still wins over after push'
+Assert-Equal 'grace_wait' (Get-PrClearanceNextAction -State none -FirstInteraction -FindingCount 0 -ActBatchCount 0).action 'first pass empty + none grace_wait'
+Assert-Equal 30 (Get-PrClearanceNextAction -State none -FirstInteraction -FindingCount 0 -ActBatchCount 0).seconds 'first pass grace is 30s'
+Assert-Equal 'wait' (Get-PrClearanceNextAction -State none -FirstInteraction -FindingCount 2 -ActBatchCount 0).action 'first pass findings without tip finish wait'
+Assert-Equal 'wait' (Get-PrClearanceNextAction -State in_flight -FirstInteraction -FindingCount 1 -ActBatchCount 0).action 'first pass findings + in_flight wait'
 Assert-Equal 'wait' (Get-PrClearanceNextAction -State in_flight -FirstInteraction -FindingCount 0 -ActBatchCount 0).action 'first pass empty + in_flight waits'
+Assert-Equal 'act' (Get-PrClearanceNextAction -State finished_this_sha -FirstInteraction -FindingCount 2 -ActBatchCount 0).action 'first pass acts only when tip finished'
 Assert-Equal 'finalize_quiet' (Get-PrClearanceNextAction -State finished_this_sha -FirstInteraction -FindingCount 0 -ActBatchCount 0).action 'first pass already quiet stays quiet'
+Assert-Equal 'request_and_wait' (Get-PrClearanceNextAction -State finished_stale_sha -FirstInteraction -FindingCount 0 -ActBatchCount 0).action 'first pass stale kicks tip review'
+Assert-Equal 'request_and_wait' (Get-PrClearanceNextAction -State none -FirstInteraction -AfterGrace -FindingCount 0 -ActBatchCount 0).action 'after grace still none kick'
+Assert-Equal 'wait' (Get-PrClearanceNextAction -State in_flight -FirstInteraction -AfterGrace -FindingCount 0 -ActBatchCount 0).action 'after grace in_flight wait'
+Assert-Equal 'finalize_quiet' (Get-PrClearanceNextAction -State finished_this_sha -FirstInteraction -AfterGrace -FindingCount 0 -ActBatchCount 0).action 'after grace tip finished + empty quiet'
 Assert-Equal 'finalize_quiet' (Get-PrClearanceNextAction -State none -FindingCount 0 -ActBatchCount 0).action 'later empty findings is completion'
+Assert-Equal 'finalize_quiet' (Get-PrClearanceNextAction -State in_flight -AfterGrace -FindingCount 0 -ActBatchCount 1).action 'AfterGrace alone does not keep first-round wait'
 Assert-Equal 'finalize_quiet' (Get-PrClearanceNextAction -State in_flight -FindingCount 0 -ActBatchCount 1).action 'later empty findings completes even if leftover in_flight'
 Assert-Equal 'request_and_wait' (Get-PrClearanceNextAction -State finished_stale_sha -FindingCount 0 -ActBatchCount 1).action 'later empty + stale kicks tip review'
 Assert-Equal 'finalize_quiet' (Get-PrClearanceNextAction -State finished_this_sha -FindingCount 0 -ActBatchCount 1).action 'later empty + tip finished is quiet'
@@ -785,9 +795,9 @@ try {
     $readme = Get-Content -LiteralPath $readmePath -Raw
     Assert-True ($readme -notmatch '(?m)^\s*"git"\s*,?\s*$') 'readme allowlist has no bare git prefix'
     Assert-True ($readme -notmatch '"git -C "') 'readme allowlist has no generic git -C prefix'
-    Assert-True ($readme -match '"git status"') 'readme allowlist names git status'
-    Assert-True ($readme -match '"git commit"') 'readme allowlist names git commit'
-    Assert-True ($readme -match '"git push"') 'readme allowlist names git push'
+    Assert-True ($readme -match '(?i)Auto-review') 'readme prefers Auto-review for quieter runs'
+    Assert-True ($readme -match '(?i)terminalAllowlist') 'readme warns about terminalAllowlist'
+    Assert-True ($readme -match '(?i)prefix') 'readme warns against broad Always Run prefixes'
 
     $commandCandidates = @(
         (Join-Path (Split-Path -Parent $packRoot) 'adapters\cursor\commands\pr-clearance.md'),
@@ -806,10 +816,8 @@ try {
         Assert-True ($commandText -match '(?i)justification') 'fixed public replies preserve specialist reasoning'
         Assert-True ($commandText.Contains('pr-clearance-policy.md')) 'command names pr-clearance-policy.md'
         Assert-True ($commandText.Contains('sicon-pr-clearance')) 'command probes the marketplace plugin id'
-        $pluginIdx = $commandText.IndexOf('sicon-pr-clearance')
-        $packIdx = $commandText.IndexOf('.cursor\packs\pr-clearance\scripts')
-        Assert-True ($pluginIdx -ge 0) 'plugin token is present for index check'
-        Assert-True ($packIdx -gt $pluginIdx) 'command prefers plugin scripts before user-pack scripts'
+        Assert-True ($commandText -match '(?i)Dual Resolve') 'command uses Dual Resolve for scripts'
+        Assert-True ($commandText -match '(?i)never prefer pack') 'command prefers plugin before pack dogfood'
         Assert-True ($commandText.Contains('Get-PrClearancePolicyDecision')) 'command names Get-PrClearancePolicyDecision'
         Assert-True (-not $commandText.Contains('Return `{ action: fix | dismiss | ask, reason }`')) 'command no longer returns fix|dismiss|ask'
         Assert-True ($commandText.Contains('Invoke-PrClearanceSpecialist')) 'command names Invoke-PrClearanceSpecialist'
@@ -822,6 +830,9 @@ try {
         Assert-True ($commandText.Contains('one specialist')) 'command states one specialist per Act'
         Assert-True ($commandText -match '(?i)serial') 'command states serial Path'
         Assert-True ($commandText -match '(?i)dispose') 'command states dispose at Act end'
+        Assert-True ($commandText -match '(?i)Orient') 'command names Orient for mid-clearance Q&A'
+        Assert-True ($commandText -match '(?i)answer-only') 'command says answer-only for Q&A'
+        Assert-True ($commandText -match '(?i)must not pause clearance') 'command forbids treating Q&A as pause'
     }
 
     $stopReply = Get-PrClearanceHardStopReply -Reason max_batches

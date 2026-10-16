@@ -1,9 +1,9 @@
 ---
-description: Invoke DLB (Devops Leading Brief) — brief; implement inline or via Superpowers per skill
+description: Invoke DLB (Devops Leading Brief) — brief; implement inline by default (Superpowers only when pinned); fullmonty = implement + autoland ship
 alwaysApply: false
 ---
 
-<!-- contrib-managed: devops-leading-brief@0.3.3 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: devops-leading-brief@0.3.8 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
 
 # DLB triggers — Devops Leading Brief
 
@@ -12,20 +12,24 @@ When the user message matches a trigger below, follow **`/DLB`** and **Read** th
 ## Engage when any
 
 - `/DLB <id>` or `/dlb <id>` → **brief** mode
-- `/DLB <id> implement` / `/DLB <id> and implement` / close variants → **implement** (infer inline vs Superpowers per skill; user may pin)
+- `/DLB <id> implement` / `/DLB <id> and implement` / close variants → **implement** (inline unless user pins Superpowers)
+- `/DLB <id> fullmonty` / `full monty` / `full-monty` / `the full monty` (and close variants) → **implement + ship autoland** (no Enrich stop; no ship offer; no message gate; `/pr-clearance` when tooling present, else warn + skip)
+- Bare `fullmonty` (or close variants) in a thread that already ran DLB → same as implement go-ahead **plus** ship autoland
 - `/DLB` or `/dlb` (bare — then ask for the card number)
-- `load devops card <cardnumber> for context` → **brief** unless they also say implement / just do it / don't ask me
+- `load devops card <cardnumber> for context` → **brief** unless they also say implement / fullmonty / just do it / don't ask me
 - `I want to look at devops card <cardnumber> please fetch it for context` → **brief**
 - Close variants that clearly ask to **load / fetch / pull / brief** an ADO/DevOps **card** **for context** → **brief**
-- “devops leading brief” / “DLB” with a card number → **brief** unless implement phrases present
+- “devops leading brief” / “DLB” with a card number **and** explicit **load / fetch / pull / brief-for-context** intent → **brief** unless implement / fullmonty phrases present
 
 Also engage **Orient Q&A** when, in a thread that already ran DLB, the user asks where to start or how to probe the loaded card — answer from context; do not change mode.
 
-**Brief:** Enrich in the report; **purge stale `{id}` brief files then write** thin brief; stop. Enrich is not a gate option.  
-**Implement:** current agent (inline or Superpowers per skill); **seed only from this-invoke thin brief** (never a prior-run file); require clean write-root tree; then **offer** ship (message gate before any commit/PR) — do not auto-ship.
+**Brief:** Enrich in the report; **purge stale `{id}` brief files then write** thin brief; stop (unless **fullmonty**). Enrich is not a gate option.  
+**Implement:** **inline** unless the user pins Superpowers; **seed only from this-invoke thin brief** (never a prior-run file); require clean write-root tree; then **offer** ship (message gate before any commit/PR) — do not auto-ship. Hard fence: do not auto-load Superpowers / SDD / TDD.  
+**fullmonty:** implement + ship **autoland** (draft + land as if **`go`**); stop only on obvious blockers; product decisions **early** (before first edit when visible); **disregard** security broaden; `/pr-clearance` when tooling resolves, else warn + skip (plugin surface cannot require clearance). Not a rename of `/nineyards`.
 
 ## When NOT to engage
 
 - Casual mention of a work item without asking to load/fetch context
 - `/dev-triage`, `/devops-card` (different tools)
 - Halo-only browsing with no ADO card id
+- Bare `/nineyards` without a DLB card context (different command — do not remap to fullmonty)

@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.33"
+                     "version":  "0.1.35"
                  },
     "plugins":  [
                     {
@@ -45,11 +45,6 @@
                         "description":  "Shared local git invoke, head SHA, commit, and push library for other Sicon plugins (no slash command)"
                     },
                     {
-                        "name":  "sicon-pr-clearance",
-                        "source":  "./plugins/sicon-pr-clearance",
-                        "description":  "Drive an Azure DevOps pull request to review-quiet via Policy, Human, and configured review tools"
-                    },
-                    {
                         "name":  "sicon-typesetter",
                         "source":  "./plugins/sicon-typesetter",
                         "description":  "Prep dirty files against each repo\u0027s format and lint tooling before hard gates are on"
@@ -60,11 +55,6 @@
                         "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
                     },
                     {
-                        "name":  "sicon-devops-leading-brief",
-                        "source":  "./plugins/sicon-devops-leading-brief",
-                        "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline or Superpowers; ship offer with nineyards-shaped message gate"
-                    },
-                    {
                         "name":  "ponytail",
                         "source":  "./plugins/ponytail",
                         "description":  "Lazy senior dev mode. Forces the simplest, shortest solution that actually works: YAGNI, stdlib first, no unrequested abstractions."
@@ -73,6 +63,16 @@
                         "name":  "sicon-infer-devops-kit",
                         "source":  "./plugins/sicon-infer-devops-kit",
                         "description":  "Infer DevOps Kit — Picks DevOps card implement lane (Inline / Devops Leading Brief / Superpowers); continue/go ahead runs that next step."
+                    },
+                    {
+                        "name":  "sicon-devops-leading-brief",
+                        "source":  "./plugins/sicon-devops-leading-brief",
+                        "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance"
+                    },
+                    {
+                        "name":  "sicon-pr-clearance",
+                        "source":  "./plugins/sicon-pr-clearance",
+                        "description":  "Drive an Azure DevOps pull request to review-quiet via Policy, Human, and configured review tools"
                     }
                 ]
 }
