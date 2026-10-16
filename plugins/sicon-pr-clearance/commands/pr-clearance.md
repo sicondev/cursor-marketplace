@@ -63,26 +63,60 @@ After the root is known, pass `-WorkspaceRoot` on port calls. Vcs uses that root
 
 ### Loop
 
-Constants: wait 600s (`Wait-ReviewFinished -TimeoutSeconds 600`); max 10 Act batches.
+Constants: wait 900s (`Wait-ReviewFinished -TimeoutSeconds 900`); max 10 Act batches.
 
 ```text
 tipSha = Get-GitCoreHeadSha
 register = Read-PrClearanceActRegister (repo .tmp/pr-clearance/act-register-<pr>.json)
 firstInteraction = true
+graceConsumed = false
+actBatchCount = 0
 loop:
   findings = Get-ReviewFindings
-  next = Get-PrClearanceNextAction -PullRequestId -Sha -FindingCount findings.Count -FirstInteraction:$firstInteraction
-    # -FirstInteraction only on the first NextAction this invoke
+  next = Get-PrClearanceNextAction -PullRequestId -Sha -FindingCount findings.Count `
+    -ActBatchCount $actBatchCount `
+    -FirstInteraction:$firstInteraction -AfterGrace:($firstInteraction -and $graceConsumed)
+    # -ActBatchCount required so the 10-batch cap is enforced (default 0 would never finalize_max_batches)
+    # -FirstInteraction until first non-grace NextAction settles first-round
+    # -AfterGrace only with FirstInteraction (steers none+empty → kick; never alone later)
     # -AfterPush only when Test-PrClearanceShouldKickAfterAct -CodeChanged
+  if next.action == grace_wait:
+    # Interruptible grace (max next.seconds, default 30). Prefer sparse polls — each Get-ReviewState
+    # loads the full PR thread set. Example: sleep 10s, 10s, then a final check near the deadline
+    # before falling through to AfterGrace kick. Leave early when state is no longer none.
+    deadline = now + next.seconds
+    while now < deadline:
+      sleep ~10s (or remaining time if smaller)
+      if Get-ReviewState.state != none: break
+    graceConsumed = true; continue
   firstInteraction = false
+  graceConsumed = false
   finalize_quiet → Clear-ReviewRequests; Remove-PrClearanceActRegister; then Human.finalize and stop
   finalize_timeout / finalize_max_batches → Get-ReviewFindings; each Complete-ReviewFinding dismissed with Get-PrClearanceHardStopReply; Clear-ReviewRequests; Remove-PrClearanceActRegister; then Human.finalize (quiet = false; notFixed = closed without a fix) and stop
   request_and_wait → Request-Review then Wait-ReviewFinished
   wait → Wait-ReviewFinished
-  act → Act then increment batch count
+  act → Act; actBatchCount += 1
 ```
 
-Start with findings. First NextAction: any findings → `act` (do not kick first). Empty findings → kick once (`request_and_wait`) unless state is already `in_flight` (wait) or `finished_this_sha` (quiet). After that, empty findings is completion (`finalize_quiet`) when state is `none` / leftover `in_flight` / `finished_this_sha`. Empty findings + `finished_stale_sha` → `request_and_wait` (tip not reviewed yet — never quiet). Quiet requires `finished_this_sha` and an empty findings list (`Test-PrClearanceQuiet`). `Wait-ReviewFinished` returns only on `finished_this_sha` (or timeout); stale keeps polling. After a **product-code** push, refresh `tipSha` and call NextAction `-AfterPush` (new tip still kicks). Do not pass `-AfterPush` when Act only dismissed or completed `fixed` with no path change. After every wait, if `timedOut` then NextAction `-LastWaitTimedOut`. Never write the register under `%USERPROFILE%\.cursor\`. Never `git add` it.
+
+CodeAnt often auto-starts on PR create. First-round NextAction prefers that over an immediate kick:
+
+| State (first round) | Findings | Action |
+|---------------------|----------|--------|
+| `in_flight` | any | `wait` |
+| `finished_this_sha` | > 0 | `act` |
+| `finished_this_sha` | 0 | `finalize_quiet` |
+| `finished_stale_sha` | any | `request_and_wait` |
+| `none` | > 0 | `wait` (do not Act; status normally precedes findings) |
+| `none` | 0 | `grace_wait` 30s once, then re-check with `-AfterGrace`; still `none` → `request_and_wait` |
+
+**Guards:** never `act` / never `finalize_quiet` unless `finished_this_sha` (quiet also needs empty findings). Later rounds unchanged: empty findings → `finalize_quiet` when state is `none` / leftover `in_flight` / `finished_this_sha`; empty + `finished_stale_sha` → `request_and_wait`. Quiet requires `finished_this_sha` and an empty findings list (`Test-PrClearanceQuiet`). `Wait-ReviewFinished` returns only on `finished_this_sha` (or timeout); stale keeps polling. After a **product-code** push, refresh `tipSha` and call NextAction `-AfterPush` (tip may need a review: `none` / `finished_stale_sha` → kick; `in_flight` → wait; `finished_this_sha` → findings path). Do not pass `-AfterPush` when Act only dismissed or completed `fixed` with no path change. After every wait, if `timedOut` then NextAction `-LastWaitTimedOut`. Never write the register under `%USERPROFILE%\.cursor\`. Never `git add` it.
+
+### Mid-clearance Q&A (Orient / answer-only)
+
+While **waiting** (`Wait-ReviewFinished`) or **between Act batches**, user questions are **Orient / answer-only**. Answer in chat, then continue the same wait or NextAction loop with the **same** act register. Q&A **must not pause clearance** — do not treat it as engage stop, Act abort, or “pause until continue”.
+
+**Stop only** for: explicit stop / hold, dirty working tree, branch mismatch, or Human Fix|Dismiss cards (plus existing engage stop conditions). Do not ask the user to say “continue” after a mid-wait question.
 
 ### Policy
 
@@ -131,7 +165,7 @@ After Human, attach `human = @{ choice; guidance }` on each issue (`choice` is F
 
 If the specialist returns `ask` again on the same issue, Human once more. New `guidance` replaces the previous. Fuses (repeat / amend cap) still apply so a bounce loop cannot run forever.
 
-**Finalize** after quiet or hard stop. Call `Clear-ReviewRequests -PullRequestId -WorkspaceRoot` first (Review port). Append `Get-PrClearanceReviewRequestClearNotes` to `reasons[]`. Warn on failure; do not skip the report. Then `Remove-PrClearanceActRegister -RepoRoot -PullRequestId` so the next `/pr-clearance` on this PR starts a fresh engage (new `changedPaths` freeze). Do not wait for Done to delete — the Ack click is not required. Chat the report `{ quiet, fixed[], notFixed[], reasons[], repeated[] }`, then `AskQuestion` `prompt`: `PR #<id> clearance finished.` One option: `done` — `Done`. No merge. No commit/push/create-PR options.
+**Finalize** after quiet or hard stop. Call `Clear-ReviewRequests -PullRequestId -WorkspaceRoot` first (Review port). That call closes leftover review-request kicks and any Review-tool meta/status threads that tool owns; warn on failure. Append `Get-PrClearanceReviewRequestClearNotes` to `reasons[]`. Warn on failure; do not skip the report. Then `Remove-PrClearanceActRegister -RepoRoot -PullRequestId` so the next `/pr-clearance` on this PR starts a fresh engage (new `changedPaths` freeze). Do not wait for Done to delete — the Ack click is not required. Chat the report `{ quiet, fixed[], notFixed[], reasons[], repeated[] }`, then `AskQuestion` `prompt`: `PR #<id> clearance finished.` One option: `done` — `Done`. No merge. No commit/push/create-PR options.
 
 ### Act (one batch, then loop)
 

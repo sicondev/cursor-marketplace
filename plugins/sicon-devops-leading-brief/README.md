@@ -1,6 +1,6 @@
 # Sicon Devops Leading Brief
 
-Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline or Superpowers; ship offer with nineyards-shaped message gate
+Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance
 
 Install from the Sicon Team Marketplace, then use `/DLB` in chat.
 
@@ -20,7 +20,72 @@ This pack’s `content/` is README-only; adapters carry the Cursor surfaces. Pre
 | Command | Purpose |
 |---------|---------|
 | `/DLB <id>` | Brief — findings + Enrich; write thin brief file; stop |
-| `/DLB <id> implement` | Implement — infer inline vs Superpowers; ship offer by default |
+| `/DLB <id> implement` | Implement — **inline** (Superpowers only if pinned); ship offer by default |
+| `/DLB <id> fullmonty` | Implement + ship **autoland** (no Enrich stop / ship offer / message gate) + `/pr-clearance` when available (else warn + skip); product decisions early; disregard security broaden |
+
+## Make implementers engage my skills / Tasks
+
+DLB (and other implementers such as autonomous-dev) do **not** hardcode product agents. The write-root catalog is **shared**: .cursor/agent-implementation-toolkit.json. Two tiers:
+
+### Skills (always via write-root catalog)
+
+1. Install DLB (plugin).
+2. Add `{writeRoot}/.cursor/agent-implementation-toolkit.json` with `engage: read` rows.
+3. Done — when `when.globs` hit brief Paths, DLB **Reads** those skills/docs. **No** profile allowlist.
+
+### Tasks (catalog + profile allowlist)
+
+Unattended `/DLB` / fullmonty can spawn Tasks **only** when you opt in on your machine:
+
+1. Same catalog with `engage: task` + `agent` (agent definition must already exist under the write root).
+2. Create `%USERPROFILE%\.cursor\agent-implementation-toolkit-allowlist.json` listing agent names you trust to auto-spawn:
+
+```json
+{ "agents": ["foreman", "devexpress-data-shape-review", "devex-guru"] }
+```
+
+3. A product PR **cannot** enlarge this list — only your profile can. Missing allowlist → skills/`read` still work; **no** Task spawn from the catalog.
+
+| `engage` | Needs toolkit row | Needs profile allowlist | Behaviour |
+|----------|-------------------|-------------------------|-----------|
+| `read` | yes | **no** | Read path-allowlisted files under `.cursor/skills\|agents\|rules/`, `devtools/org/`, `docs/` |
+| `task` | yes | **yes** | After product decisions + branch: spawn Task if allowlisted **and** on-disk agent exists |
+
+**You do not need to change the skill/agent itself** for discovery. Keep normal `SKILL.md` / agent definitions; point the catalog at them; add Task names to your profile allowlist only if you want auto-spawn.
+
+Minimal catalog examples:
+
+```json
+{
+  "version": 1,
+  "entries": [
+    {
+      "id": "new-document-type",
+      "kind": "convention",
+      "engage": "read",
+      "paths": [".cursor/skills/new-document-type/SKILL.md"],
+      "when": { "globs": ["**/DocumentTypes/**", "**/*DocumentType*.cs"] },
+      "required": false
+    },
+    {
+      "id": "stack-builder",
+      "kind": "build",
+      "engage": "task",
+      "agent": "foreman",
+      "when": { "globs": ["**/API/Controllers/**", "**/Repositories/**"] },
+      "required": false
+    }
+  ]
+}
+```
+
+Notes:
+
+- Same catalog shape works in Approvals, Hub, Manufacturing, Platform — only the rows differ.
+- Do **not** list PreCursor/Mobius (or other disabled gates) unless you want them engaged.
+- DLB does **not** auto-create the catalog or the profile allowlist on first engage. Copy from this README when you opt in.
+- Residual risk: allowlist is by **name**; a later PR can change that agent’s body — treat write-root agent PRs as trusted once you allowlisted the name.
+- Full field rules live in the skill § **Repo toolkit load**.
 
 ## Reliability
 
@@ -28,7 +93,7 @@ Supported contract: `/DLB` + skill + triggers. ADO/Halo quality and ship-chain s
 
 ## Reason for existing
 
-Packages ADO leading-brief as its own contrib so teams can brief and implement in-agent with a durable thin brief file and a gated ship chain.
+Packages ADO leading-brief as its own contrib so teams can brief and implement in-agent with a durable thin brief file and a gated ship chain (or fullmonty autoland when requested).
 
 ## Other contribs
 

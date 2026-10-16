@@ -6,7 +6,8 @@ $script:PrClearanceFingerprintFixLimit = 2
 $script:PrClearanceFingerprintCap = 32
 $script:PrClearancePathConsecutiveFixLimit = 3
 $script:PrClearancePathAmendLimit = 5
-$script:PrClearanceWaitTimeoutSeconds = 600
+$script:PrClearanceWaitTimeoutSeconds = 900
+$script:PrClearanceFirstRoundGraceSeconds = 30
 $script:PrClearanceTools = @{}
 $script:PrClearanceBind = $null
 $script:PrClearanceInstalledScriptCache = @{}
@@ -703,6 +704,7 @@ function Get-PrClearanceNextAction {
         [switch]$LastWaitTimedOut,
         [switch]$AfterPush,
         [switch]$FirstInteraction,
+        [switch]$AfterGrace,
         [int]$FindingCount = -1,
         [int]$PullRequestId = 0,
         [string]$Sha = '',
@@ -712,9 +714,6 @@ function Get-PrClearanceNextAction {
     $quietValue = [bool]$Quiet
     if ($LastWaitTimedOut) {
         return [pscustomobject]@{ action = 'finalize_timeout' }
-    }
-    if ($AfterPush) {
-        return [pscustomobject]@{ action = 'request_and_wait' }
     }
 
     if ([string]::IsNullOrWhiteSpace($State)) {
@@ -741,18 +740,64 @@ function Get-PrClearanceNextAction {
         }
     }
 
-    if ($FindingCount -ge 0 -and $FirstInteraction) {
-        if ($FindingCount -gt 0) {
-            if ($ActBatchCount -ge $script:PrClearanceMaxActBatches) {
-                return [pscustomobject]@{ action = 'finalize_max_batches' }
-            }
-            return [pscustomobject]@{ action = 'act' }
-        }
+    # AfterPush: tip may need a review — wait if already in flight; do not always kick.
+    if ($AfterPush) {
         switch ($State) {
             'in_flight' { return [pscustomobject]@{ action = 'wait' } }
-            'finished_this_sha' { return [pscustomobject]@{ action = 'finalize_quiet' } }
             'none' { return [pscustomobject]@{ action = 'request_and_wait' } }
             'finished_stale_sha' { return [pscustomobject]@{ action = 'request_and_wait' } }
+            'finished_this_sha' {
+                if ($FindingCount -gt 0) {
+                    if ($ActBatchCount -ge $script:PrClearanceMaxActBatches) {
+                        return [pscustomobject]@{ action = 'finalize_max_batches' }
+                    }
+                    return [pscustomobject]@{ action = 'act' }
+                }
+                if ($FindingCount -eq 0 -or $quietValue) {
+                    return [pscustomobject]@{ action = 'finalize_quiet' }
+                }
+                if ($ActBatchCount -ge $script:PrClearanceMaxActBatches) {
+                    return [pscustomobject]@{ action = 'finalize_max_batches' }
+                }
+                return [pscustomobject]@{ action = 'act' }
+            }
+            default { throw "Unknown review state: $State" }
+        }
+    }
+
+    # First round: prefer auto-review. Never act/quiet unless finished_this_sha.
+    # AfterGrace only steers the none+empty branch (kick vs grace_wait) while FirstInteraction
+    # is still true — it must not keep first-round rules after FirstInteraction clears.
+    if ($FindingCount -ge 0 -and $FirstInteraction) {
+        switch ($State) {
+            'in_flight' {
+                return [pscustomobject]@{ action = 'wait' }
+            }
+            'finished_this_sha' {
+                if ($FindingCount -gt 0) {
+                    if ($ActBatchCount -ge $script:PrClearanceMaxActBatches) {
+                        return [pscustomobject]@{ action = 'finalize_max_batches' }
+                    }
+                    return [pscustomobject]@{ action = 'act' }
+                }
+                return [pscustomobject]@{ action = 'finalize_quiet' }
+            }
+            'finished_stale_sha' {
+                return [pscustomobject]@{ action = 'request_and_wait' }
+            }
+            'none' {
+                if ($FindingCount -gt 0) {
+                    # Status normally precedes findings; do not Act or kick on findings alone.
+                    return [pscustomobject]@{ action = 'wait' }
+                }
+                if ($AfterGrace) {
+                    return [pscustomobject]@{ action = 'request_and_wait' }
+                }
+                return [pscustomobject]@{
+                    action  = 'grace_wait'
+                    seconds = [int]$script:PrClearanceFirstRoundGraceSeconds
+                }
+            }
             default { throw "Unknown review state: $State" }
         }
     }
