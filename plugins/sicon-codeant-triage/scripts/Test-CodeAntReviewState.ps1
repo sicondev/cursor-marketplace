@@ -226,6 +226,140 @@ Assert-True (@($clearedNone.Warnings).Count -eq 0) 'non-trigger clear has no war
 $clearedEmpty = Clear-CodeAntReviewRequests -PullRequestId $prId -Threads @()
 Assert-True ($clearedEmpty.ResolvedCount -eq 0) 'explicit empty threads snapshot does not fetch'
 
+# --- Meta thread clear (Closed) vs kick (Fixed) ---
+$script:CodeAntStatusCalls = New-Object 'System.Collections.Generic.List[object]'
+function Set-CodeAntAdoThreadStatus {
+    param(
+        [int]$PullRequestId,
+        [int]$ThreadId,
+        [string]$Status = 'Fixed',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = '',
+        [string]$WorkspaceRoot = ''
+    )
+    $script:CodeAntStatusCalls.Add([pscustomobject]@{
+            ThreadId = $ThreadId
+            Status   = $Status
+        })
+}
+
+$codeAntAuthor = [pscustomobject]@{ displayName = 'Code Ant' }
+$humanAuthor = [pscustomobject]@{ displayName = 'Alice' }
+$metaTicket = [pscustomobject]@{
+    id       = 301
+    status   = 'active'
+    comments = @([pscustomobject]@{
+            id      = 1
+            author  = $codeAntAuthor
+            content = "## Ticket Scope Review`n| Area | Result |`n| --- | --- |`n| Scope | OK |"
+        })
+}
+$metaStatus = [pscustomobject]@{
+    id       = 302
+    status   = 'active'
+    comments = @([pscustomobject]@{
+            id      = 1
+            author  = $codeAntAuthor
+            content = ("## CodeAnt AI - Review Status" + [Environment]::NewLine + "| Status | Commit |" + [Environment]::NewLine + "| --- | --- |" + [Environment]::NewLine + "| Done | ``aaaaaaaa`` |")
+        })
+}
+$metaGate = [pscustomobject]@{
+    id       = 303
+    status   = 'active'
+    comments = @([pscustomobject]@{
+            id      = 1
+            author  = $codeAntAuthor
+            content = "## CodeAnt Quality Gate Results`n| Gate | Result |"
+        })
+}
+$kickThread = [pscustomobject]@{
+    id       = 304
+    status   = 'active'
+    comments = @([pscustomobject]@{ id = 1; content = '@codeant-ai: review' })
+}
+$fileThread = [pscustomobject]@{
+    id            = 305
+    status        = 'active'
+    threadContext = [pscustomobject]@{ filePath = '/src/App.cs' }
+    comments      = @([pscustomobject]@{
+            id      = 1
+            author  = $codeAntAuthor
+            content = '## Ticket Scope Review should not match file threads'
+        })
+}
+$humanThread = [pscustomobject]@{
+    id       = 306
+    status   = 'active'
+    comments = @([pscustomobject]@{ id = 1; author = $humanAuthor; content = 'LGTM after the scope pass' })
+}
+$humanMentionGate = [pscustomobject]@{
+    id       = 307
+    status   = 'active'
+    comments = @([pscustomobject]@{
+            id      = 1
+            author  = $humanAuthor
+            content = 'Did we pass the Quality Gate yet?'
+        })
+}
+$metaPrRisk = [pscustomobject]@{
+    id       = 308
+    status   = 'active'
+    comments = @([pscustomobject]@{
+            id      = 1
+            author  = $codeAntAuthor
+            content = "**CodeAnt PR Risk: Medium Risk**`n- Needs attention before merging."
+        })
+}
+$humanMentionPrRisk = [pscustomobject]@{
+    id       = 309
+    status   = 'active'
+    comments = @([pscustomobject]@{
+            id      = 1
+            author  = $humanAuthor
+            content = 'Is the PR Risk score still medium?'
+        })
+}
+
+Assert-True (Test-IsCodeAntMetaThread -Thread $metaTicket) 'Ticket Scope Review is meta'
+Assert-True (Test-IsCodeAntMetaThread -Thread $metaStatus) 'Review Status table is meta'
+Assert-True (Test-IsCodeAntMetaThread -Thread $metaGate) 'Quality Gate is meta'
+Assert-True (Test-IsCodeAntMetaThread -Thread $metaPrRisk) 'PR Risk is meta'
+Assert-True (-not (Test-IsCodeAntMetaThread -Thread $kickThread)) 'kick is not meta'
+Assert-True (-not (Test-IsCodeAntMetaThread -Thread $fileThread)) 'file thread is not meta'
+Assert-True (-not (Test-IsCodeAntMetaThread -Thread $humanThread)) 'human prose is not meta'
+Assert-True (-not (Test-IsCodeAntMetaThread -Thread $humanMentionGate)) 'human Quality Gate mention is not meta'
+Assert-True (-not (Test-IsCodeAntMetaThread -Thread $humanMentionPrRisk)) 'human PR Risk mention is not meta'
+
+$script:CodeAntStatusCalls.Clear()
+$metaCleared = Clear-CodeAntMetaThreads -PullRequestId $prId -Threads @(
+    $metaTicket, $metaStatus, $metaGate, $metaPrRisk, $kickThread, $fileThread, $humanThread, $humanMentionGate, $humanMentionPrRisk
+)
+Assert-True ($metaCleared.ResolvedCount -eq 4) 'meta clear resolves four meta threads'
+Assert-True ((@($metaCleared.ThreadIds | Sort-Object) -join ',') -eq '301,302,303,308') 'meta clear thread ids'
+foreach ($call in $script:CodeAntStatusCalls.ToArray()) {
+    Assert-True ($call.Status -eq 'Closed') "meta clear uses Closed (thread $($call.ThreadId))"
+}
+
+$script:CodeAntStatusCalls.Clear()
+$kickCleared = Clear-CodeAntRetriggerThreads -PullRequestId $prId -Threads @($kickThread, $metaTicket)
+Assert-True ($kickCleared.ResolvedCount -eq 1) 'retrigger clear still only clears kicks'
+Assert-True ($script:CodeAntStatusCalls.Count -eq 1) 'retrigger clear one status call'
+Assert-True ($script:CodeAntStatusCalls[0].ThreadId -eq 304) 'kick thread id'
+Assert-True ($script:CodeAntStatusCalls[0].Status -eq 'Fixed') 'kick clear still Fixed'
+
+$script:CodeAntStatusCalls.Clear()
+$merged = Clear-CodeAntReviewRequests -PullRequestId $prId -Threads @(
+    $kickThread, $metaTicket, $fileThread, $humanThread
+)
+Assert-True ($merged.ResolvedCount -eq 2) 'review-requests clear resolves kick + meta'
+Assert-True ((@($merged.ThreadIds | Sort-Object) -join ',') -eq '301,304') 'merged thread ids'
+$byId = @{}
+foreach ($c in $script:CodeAntStatusCalls.ToArray()) { $byId[[int]$c.ThreadId] = [string]$c.Status }
+Assert-True ($byId[304] -eq 'Fixed') 'merged kick → Fixed'
+Assert-True ($byId[301] -eq 'Closed') 'merged meta → Closed'
+
 if ($failures.Count -gt 0) {
     $sep = [Environment]::NewLine + ' - '
     Write-Error ('Test-CodeAntReviewState FAILED:' + [Environment]::NewLine + ' - ' + ($failures -join $sep))
