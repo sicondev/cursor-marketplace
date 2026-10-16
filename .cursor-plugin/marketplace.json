@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.36"
+                     "version":  "0.1.37"
                  },
     "plugins":  [
                     {
@@ -45,11 +45,6 @@
                         "description":  "Prep dirty files against each repo\u0027s format and lint tooling before hard gates are on"
                     },
                     {
-                        "name":  "sicon-codeant-triage",
-                        "source":  "./plugins/sicon-codeant-triage",
-                        "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
-                    },
-                    {
                         "name":  "ponytail",
                         "source":  "./plugins/ponytail",
                         "description":  "Lazy senior dev mode. Forces the simplest, shortest solution that actually works: YAGNI, stdlib first, no unrequested abstractions."
@@ -73,6 +68,11 @@
                         "name":  "sicon-pr-clearance",
                         "source":  "./plugins/sicon-pr-clearance",
                         "description":  "Drive an Azure DevOps pull request to review-quiet via Policy, Human, and configured review tools"
+                    },
+                    {
+                        "name":  "sicon-codeant-triage",
+                        "source":  "./plugins/sicon-codeant-triage",
+                        "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
                     }
                 ]
 }

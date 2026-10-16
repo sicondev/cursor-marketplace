@@ -491,6 +491,90 @@ function Clear-CodeAntRetriggerThreads {
     }
 }
 
+function Test-IsCodeAntMetaThread {
+    param($Thread)
+
+    if (-not $Thread) { return $false }
+    $threadContext = Get-PsObjectPropertyValue -Object $Thread -Name 'threadContext' -Default $null
+    $filePath = ''
+    if ($null -ne $threadContext) {
+        $filePath = [string](Get-PsObjectPropertyValue -Object $threadContext -Name 'filePath' -Default '')
+    }
+    if (-not [string]::IsNullOrWhiteSpace($filePath)) { return $false }
+
+    $status = 'active'
+    if ($Thread.PSObject.Properties.Name -contains 'status' -and $null -ne $Thread.status) {
+        $status = [string]$Thread.status
+    }
+    if (-not (Test-IsActiveAdoThread -Status $status)) { return $false }
+    if (-not (Test-PsObjectHasProperty -Object $Thread -Name 'comments')) { return $false }
+
+    # Status-family allowlist: Code Ant author + first-heading match (not a human phrase mention).
+    $headerPatterns = @(
+        '(?m)^##\s+Ticket Scope Review\b'
+        '(?m)^##\s+CodeAnt AI\s*[-—]\s*Review Status\b'
+        '(?m)^##\s+CodeAnt Quality Gate Results\b'
+        '(?m)^(?:##\s+|\*\*)?CodeAnt PR Risk\b'
+    )
+    foreach ($threadComment in (Get-AdoThreadComments -Thread $Thread)) {
+        if ((Get-AdoCommentAuthorDisplayName -Comment $threadComment) -ne $script:CodeAntAuthorName) { continue }
+        $body = Get-AdoCommentContentText -Comment $threadComment
+        if ([string]::IsNullOrWhiteSpace($body)) { continue }
+        foreach ($pattern in $headerPatterns) {
+            if ($body -match $pattern) { return $true }
+        }
+    }
+    return $false
+}
+
+function Clear-CodeAntMetaThreads {
+    <#
+    .SYNOPSIS
+      Marks active CodeAnt meta/status threads Closed (Ticket Scope / Review Status / Quality Gate / PR Risk).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        $Threads,
+
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = '',
+        [string]$WorkspaceRoot = ''
+    )
+
+    if (-not $PSBoundParameters.ContainsKey('Threads') -or $null -eq $Threads) {
+        $Threads = Get-CodeAntPullRequestThreads -PullRequestId $PullRequestId `
+            -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl `
+            -WorkspaceRoot $WorkspaceRoot
+    }
+
+    $resolved = New-Object System.Collections.Generic.List[int]
+    $warnings = New-Object System.Collections.Generic.List[string]
+    foreach ($thread in @($Threads)) {
+        if (-not (Test-IsCodeAntMetaThread -Thread $thread)) { continue }
+        $threadId = [int]$thread.id
+        try {
+            Set-CodeAntAdoThreadStatus -PullRequestId $PullRequestId -ThreadId $threadId -Status Closed `
+                -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl `
+                -WorkspaceRoot $WorkspaceRoot
+            $resolved.Add($threadId)
+        }
+        catch {
+            [void]$warnings.Add("Thread $threadId`: $($_.Exception.Message)")
+        }
+    }
+
+    return [pscustomobject]@{
+        PullRequestId = $PullRequestId
+        ResolvedCount = $resolved.Count
+        ThreadIds     = @($resolved.ToArray())
+        Warnings      = @($warnings.ToArray())
+    }
+}
+
 function Get-CodeAntFileFindingsFromThreads {
     param(
         $Threads,

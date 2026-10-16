@@ -762,5 +762,36 @@ function Clear-CodeAntReviewRequests {
     if ($PSBoundParameters.ContainsKey('Threads')) {
         $clearParams.Threads = $Threads
     }
-    return Clear-CodeAntRetriggerThreads @clearParams
+    else {
+        # One snapshot for both clears — avoids a second fetch that can throw after kicks were fixed.
+        $clearParams.Threads = Get-CodeAntPullRequestThreads -PullRequestId $PullRequestId `
+            -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl `
+            -WorkspaceRoot $WorkspaceRoot
+    }
+
+    $kick = Clear-CodeAntRetriggerThreads @clearParams
+    $meta = Clear-CodeAntMetaThreads @clearParams
+
+    $ids = New-Object System.Collections.Generic.List[int]
+    foreach ($id in @($kick.ThreadIds)) {
+        if ($null -ne $id) { [void]$ids.Add([int]$id) }
+    }
+    foreach ($id in @($meta.ThreadIds)) {
+        if ($null -ne $id) { [void]$ids.Add([int]$id) }
+    }
+
+    $warnings = New-Object System.Collections.Generic.List[string]
+    foreach ($w in @($kick.Warnings)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$w)) { [void]$warnings.Add([string]$w) }
+    }
+    foreach ($w in @($meta.Warnings)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$w)) { [void]$warnings.Add([string]$w) }
+    }
+
+    return [pscustomobject]@{
+        PullRequestId = $PullRequestId
+        ResolvedCount = $ids.Count
+        ThreadIds     = @($ids.ToArray())
+        Warnings      = @($warnings.ToArray())
+    }
 }
