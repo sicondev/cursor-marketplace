@@ -510,10 +510,13 @@ function Test-IsCodeAntMetaThread {
     if (-not (Test-PsObjectHasProperty -Object $Thread -Name 'comments')) { return $false }
 
     # Status-family allowlist: Code Ant author + first-heading match (not a human phrase mention).
+    # Live posts often prefix emoji / shortcodes (e.g. "## 🤖 CodeAnt AI — Review Status",
+    # "# :checkered_flag: CodeAnt Quality Gate Results") — keep the allowlist tolerant of that.
     $headerPatterns = @(
         '(?m)^##\s+Ticket Scope Review\b'
-        '(?m)^##\s+CodeAnt AI\s*[-—]\s*Review Status\b'
-        '(?m)^##\s+CodeAnt Quality Gate Results\b'
+        '(?m)^##\s+(?:\S+\s+)?CodeAnt AI\s*[-—]\s*Review Status\b'
+        '(?m)^#{1,2}\s+(?::[\w+]+:\s*)?CodeAnt Quality Gate Results\b'
+        '(?m)^##\s+CodeAnt Nitpicks\b'
         '(?m)^(?:##\s+|\*\*)?CodeAnt PR Risk\b'
     )
     foreach ($threadComment in (Get-AdoThreadComments -Thread $Thread)) {
@@ -530,7 +533,7 @@ function Test-IsCodeAntMetaThread {
 function Clear-CodeAntMetaThreads {
     <#
     .SYNOPSIS
-      Marks active CodeAnt meta/status threads Closed (Ticket Scope / Review Status / Quality Gate / PR Risk).
+      Marks active CodeAnt meta/status threads Closed (Ticket Scope / Review Status / Quality Gate / Nitpicks / PR Risk).
     #>
     param(
         [Parameter(Mandatory = $true)]

@@ -59,7 +59,18 @@ After the root is known, pass `-WorkspaceRoot` on port calls. Vcs uses that root
    - `fresh` — `Start fresh` — `Remove-PrClearanceActRegister`, then engage as new.
    - Cancel / empty → stop. Do not enter the loop.
 7. `changedPaths = Get-PrClearancePrChangedPaths -RepoRoot -TargetRef` (PR `targetRefName`). If that throws: stop engage (do not enter the loop) unless **Continue** already left a register with frozen `changedPaths` — then keep that frozen list and skip rediscovery. Do not invent an empty allowlist. Do not continue without `-ChangedPaths`.
-8. `Read-PrClearanceActRegister` then `Set-PrClearanceChangedPaths` (once). Already-frozen register from **Continue** is a no-op. After **Start fresh**, this freezes the current PR file list. **`Save-PrClearanceActRegister` after this freeze mutation.** Do not recompute `origin/target...HEAD` in later batches — a later commit must not grow the allowlist.
+8. Freeze the allowlist **once** with the real signatures (do not invent `-RepoRoot`/`-PullRequestId` on Set; do not invent `-PullRequestId` on Save — PR id lives on the register). Already-frozen register from **Continue** is a no-op. After **Start fresh**, this freezes the current PR file list. Do not recompute `origin/target...HEAD` in later batches — a later commit must not grow the allowlist.
+
+```powershell
+$reg = Read-PrClearanceActRegister -RepoRoot $repoRoot -PullRequestId $prId
+$reg = Set-PrClearanceChangedPaths -Register $reg -ChangedPaths $changedPaths
+# Empty $changedPaths does not freeze (setter no-op). Do not enter the loop with an unbound baseline —
+# policy would treat every finding as outside the PR. Stop engage unless Continue already left it frozen.
+if (-not [bool]$reg.changedPathsFrozen) {
+  throw 'Engage stopped: changedPaths empty or not frozen. Do not invent an allowlist.'
+}
+Save-PrClearanceActRegister -RepoRoot $repoRoot -Register $reg
+```
 
 ### Loop
 

@@ -21,7 +21,9 @@ This pack’s `content/` is README-only; adapters carry the Cursor surfaces. Pre
 |---------|---------|
 | `/DLB <id>` | Brief — findings + Enrich; write thin brief file; stop |
 | `/DLB <id> implement` | Implement — **inline** (Superpowers only if pinned); ship offer by default |
-| `/DLB <id> fullmonty` | Implement + ship **autoland** (no Enrich stop / ship offer / message gate) + `/pr-clearance` when available (else warn + skip); product decisions early; disregard security broaden |
+| `/DLB <id> fullmonty` | Implement + ship **autoland** (no Enrich stop / ship offer / message gate) + `/pr-clearance` **to quiet** when available (else warn + skip); product decisions early; disregard security broaden |
+
+**Prove / Fix-in:** new unit-test *files* only when card **Fix in** is **270** (mainline). Fix-in **260** (and other non-270) → build + existing splash tests only. Cherry to another version → product paths by default (omit `*Tests*`, `*.test.*` / `*.spec.*`, `__tests__/**`, and project-file churn unless Join).
 
 ## Make implementers engage my skills / Tasks
 

@@ -1,7 +1,7 @@
 {
     "name":  "sicon-devops-leading-brief",
     "displayName":  "Sicon Devops Leading Brief",
-    "version":  "0.4.0",
+    "version":  "0.4.2",
     "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance",
     "author":  {
                    "email":  "rudolf.bothma@sicon.co.uk",

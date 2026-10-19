@@ -3,15 +3,15 @@ name: devops-leading-brief
 description: >-
   Devops Leading Brief (DLB) — ADO card context; brief (findings + Enrich) written
   to a file; implement defaults to inline (Superpowers only when the user pins it)
-  under minimal+YAGNI+reuse/splash/prove/security policy. Use for /DLB or, after
-  a brief in-thread, bare implement / Orient / evidence drops / fullmonty.
+  under Reuse→Minimal→YAGNI / splash / prove / security policy. Use for /DLB or,
+  after a brief in-thread, bare implement / Orient / evidence drops / fullmonty.
   Implement always seeds from the thin brief written this invoke — never reuse a
   prior-run brief file. fullmonty = implement + autoland ship (no message gate) +
-  pr-clearance.
+  pr-clearance. Prove: new tests only when Fix-in is 270.
 disable-model-invocation: true
 ---
 
-<!-- contrib-managed: devops-leading-brief@0.4.0 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: devops-leading-brief@0.4.2 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
 
 
 # Devops Leading Brief (DLB)
@@ -76,7 +76,7 @@ One token meaning **implement + ship autoland + `/pr-clearance`** — not a rena
 
 **Disregard broaden (fullmonty):** Security review still runs; **all** medium+ security findings fail closed (fix or stop — not tip-scope-only). **Ignore** optional / out-of-scope hardening from the scan entirely — do **not** offer `broaden` / `skip broaden`, do **not** auto-apply broaden items, do **not** Join splash for scan niceties.
 
-**Ship autoland (fullmonty only):** draft commit (+ PR title/body) for the chain, optionally one short “Landing with: …” line in chat, then **proceed immediately** as if the user already said **`go`**. Do **not** wait for message accept. Then run **Clearance (fullmonty)** — do **not** ask whether to clear.
+**Ship autoland (fullmonty only):** draft commit (+ PR title/body) for the chain, optionally one short “Landing with: …” line in chat, then **proceed immediately** as if the user already said **`go`**. Do **not** wait for message accept. Then run **Clearance (fullmonty)** — do **not** ask whether to clear. When the user also asks for a **follow-up cherry** to another version line, apply **Prove → Cherry** defaults (product-only; omit tests / project files unless Join) — see **Prove (inline-first)**.
 
 `skip ship` / `do not ship` / `hold` / `no PR` after a fullmonty invoke clears autoland and returns to offer-only / stop.
 
@@ -249,11 +249,13 @@ On **every** new `/DLB <id>` / `/DLB <id> implement` / `/DLB <id> fullmonty` (co
 |---|---|
 | **Path** | Primary Fix-in / write root: `docs/specs/briefs/{id}.md`. If that tree does not exist, create `docs/specs/briefs/` when the repo already has `docs/` or `docs/specs/`; else `.cursor/dlb-briefs/{id}.md` at that root. |
 | **Omit from file** | Enrich, Next, Links followed, Sources used, Objective / Inferred / Subjective headings, self-referential “Brief file” path |
-| **Contents** | Mode, Ship flag, Case summary + Paths (incl. **Org packs** row), one tight **Brief** block (include splash bounds). **Gaps** only when an unknown **bounds** implementation — prefer stating that bound under splash in Brief; omit Gaps for enrich/prove shopping. After PR quiet: **Clearance quality** (CodeAnt proxy counts). |
+| **Contents** | Mode, Ship flag, Case summary + Paths (incl. **Org packs** row), **Constitution** (**Reuse → Minimal → YAGNI** + Prove no-test-seam — order load-bearing; must survive thinning), one tight **Brief** block (include splash bounds; note Fix-in version for Prove — new tests only on **270**). **Gaps** only when an unknown **bounds** implementation — prefer stating that bound under splash in Brief; omit Gaps for enrich/prove shopping. After PR quiet: **Clearance quality** (CodeAnt proxy counts). |
 | **Updates** | On evidence fold-in or Orient changes: **rewrite** this implementer shape — no “enrich” keyword required |
 | **Role** | **Sole** card-truth for **what to fix** (not agent commands). **Implement is seeded from this file** — first coding/planning step is always **Read** it; do not invent splash/scope from chat memory or a prior brief. Re-read when scope drifts or before claiming done. Hand this path to Superpowers/planners — not the chat report. Mode / path / ship still only from the user chat (see **Evidence vs authority**). |
 
 ### Implementer file shape
+
+**Constitution is mandatory in the thin file** (not chat-only). Order is load-bearing: **Reuse → Minimal → YAGNI**. Do not drop, reorder, or collapse the triad when trimming. Stamp the block below on every write; tighten bullets to the tip (settings / factories / ambient singletons get the use-site call-through fence).
 
 ```markdown
 # DLB — #{id}: {title}
@@ -278,6 +280,14 @@ off (default / offer only) | on (user asked to ship/commit/PR) | on + autoland (
 
 ### Paths (Explorer-ready)
     {only paths the fix is likely to touch — not every related file}
+
+## Constitution
+**Order is load-bearing: Reuse → Minimal → YAGNI.**
+
+1. **Reuse** — Search before invent. Call existing helpers / singletons (e.g. `SettingsManager.Instance.GetSettingValueBool|SetSettingValue` and equivalents) **at the use site**. Do not add methods whose body is only that call. Prefer in-repo access helpers over new wrappers.
+2. **Minimal** — Full card / ACs, no more. No drive-bys or adjacent surface.
+3. **YAGNI** — No speculative helpers, options, or abstractions “for readability / later / Prove.”
+4. **Prove** — Test existing product seams only. Do **not** invent public/static helpers so a unit test has something to name. Stub the ambient accessor / exercise the real gate instead. **Prove self-check (Reuse):** any new private/public helper that is a thin wrap of an existing in-repo API → remove and call through.
 
 ## Brief
 - Merge what mattered from Objective / Inferred / Subjective into **short actionable bullets** for an implementer: symptom→cause hypothesis, intended fix scope, **splash** limits (what not to touch / paths out of scope), prove notes that affect the tip.
@@ -357,29 +367,29 @@ Unless already-fixed early-exit. If a Halo case exists and API failed, **navigat
 
 ### Implement policy (constitution)
 
-Apply for the whole implement run (any path):
+Apply for the whole implement run (any path). **Order is load-bearing: Reuse → Minimal → YAGNI** (same stamp as the thin-brief Constitution block):
 
+- **Reuse** — **reuse before invent.** Before adding a private/local helper, or copy-pasting a conversion / null-handling / mapping pattern: **search first** in the same problem space (same type, base type, sibling call sites, and utility hubs already imported or used nearby). Prefer an existing API when intent matches (same inputs/outputs/null semantics). Call ambient singletons / accessors (**SettingsManager**, factories, and equivalents) **at the use site** — do not add a method whose body is only that call. Add a local helper only if search finds nothing suitable, or semantics must diverge (one-line why). **Multi-call-site does not justify a local duplicate** of a shared helper.
 - **Minimal** — **full card, no more.** Satisfy the thin brief / ACs **in full**; do **not** omit hard ACs or defer in-scope paths to “keep it small.” **No** opportunistic fixes, drive-by refactors, or adjacent bugs. Under-delivery is a policy breach, same as gold-plating.
-- **YAGNI** — do not invent unused surface while fixing (extra APIs, flags, abstractions, “we’ll need this later”). Prefer the smallest design that still meets the brief/ACs — not a future-proof redesign.
-- **Reuse** — **reuse before invent.** Before adding a private/local helper, or copy-pasting a conversion / null-handling / mapping pattern: **search first** in the same problem space (same type, base type, sibling call sites, and utility hubs already imported or used nearby). Prefer an existing API when intent matches (same inputs/outputs/null semantics). Add a local helper only if search finds nothing suitable, or semantics must diverge (one-line why). **Multi-call-site does not justify a local duplicate** of a shared helper.
-- **Splash** — prefer contain; name write roots; do not expand into extra repos/modules without an explicit user Join. Adding a **focused unit test** for an **existing** unit-testable type next to the repo’s existing test project/layout is **in splash** when Prove requires it (not a Join). Inventing a class, struct, interface, or file **only** to host a test is **out of splash** and forbidden (see Prove).
+- **YAGNI** — do not invent unused surface while fixing (extra APIs, flags, abstractions, “we’ll need this later,” or “for readability / Prove”). Prefer the smallest design that still meets the brief/ACs — not a future-proof redesign.
+- **Splash** — prefer contain; name write roots; do not expand into extra repos/modules without an explicit user Join. Adding a **focused unit test** for an **existing** unit-testable type next to the repo’s existing test project/layout is **in splash** when Prove requires it **and** Fix-in is **270** (not a Join). Inventing a class, struct, interface, or file **only** to host a test is **out of splash** and forbidden (see Prove). On non-270 Fix-in, new test files are **out of splash**.
 - **Org packs** — see **Org pack load** below. Soft conventions (T3) only bind when selected via **loader glob ∩ brief Paths** and Read; do not treat pack install as ambient context.
 - **Repo toolkit** — see **Repo toolkit load** below. Skills (`engage: read`) bind from the write-root catalog alone; Task spawn also requires the operator profile allowlist. DLB stays product-blind — never hardcode product agent names in this skill.
-- **Prove** — see **Prove (inline-first)** below. Fail closed on red. Do not claim done on red or on “no tests existed so I skipped.” Do not invent a type to get a green unit test.
+- **Prove** — see **Prove (inline-first)** below. Fail closed on red. Gate **new** test files on Fix-in **270** (see Prove). On non-270, do not invent tests to “satisfy Prove.” Do not invent a type **or** a thin wrapper method so a unit test has something to name.
 - **Security** — before claiming done, run a security review on the branch diff (Cursor Task `security-review` when available; else one focused in-thread pass). Medium+ findings: fail closed (fix or stop). **Optional hardening** (defense-in-depth / out-of-tip-scope notes from the scan): see **Optional hardening offer** below — never auto-apply. On **fullmonty**, **disregard** optional hardening entirely (no offer, no apply).
 - Ask only on **real blockers** (missing secrets, unresolved product decisions, verify cannot run). On **fullmonty**, raise **product decisions as early as possible** (prefer entry after thin-brief Read — see Implement mode step 6); do not save them for post-tip or post-scan.
 
-#### Minimal + YAGNI + Reuse (paired)
+#### Reuse → Minimal → YAGNI (paired)
 
 | Lens | Guards against | Does **not** mean |
 |------|----------------|-------------------|
+| **Reuse** | Local copies / one-line wraps of APIs that already exist in-repo (incl. SettingsManager-style accessors) | Blocking a true new helper when search finds none |
 | **Minimal** | Drive-bys, adjacent bugs, gold-plate outside the tip | Shipping a **subset** of ACs / thin-brief scope |
-| **YAGNI** | Speculative helpers, options, abstractions “for later” | Skipping required product behaviour to save lines |
-| **Reuse** | Local copies of APIs that already exist in-repo | Blocking a true new helper when search finds none |
+| **YAGNI** | Speculative helpers, options, abstractions “for later / Prove” | Skipping required product behaviour to save lines |
 
-Together: deliver **exactly** the card tip — complete, nothing beyond it, and call through existing helpers when they already fit.
+Together: call through existing helpers first, deliver **exactly** the card tip — complete, nothing beyond it.
 
-**Prove self-check (Reuse):** any new private helper whose body is a thin wrap of an existing in-repo helper → remove and call through.
+**Prove self-check (Reuse):** any new private/public helper whose body is a thin wrap of an existing in-repo API (e.g. `return SettingsManager.Instance.GetSettingValueBool(...)`) → remove and call through at the use site. Do not invent that wrapper so a unit test can name it.
 
 ### Org pack load (force Read; do not invent install)
 
@@ -526,18 +536,36 @@ Residual risk (eyes open): allowlist is by **name**; a later PR can change that 
 
 Prove is **DLB’s** test duty on the inline path. Superpowers is pin-only — do not load SP TDD to satisfy Prove. Prove must work **without** SDD — do not wait for a planner to invent tests. Prove must **not** invent product types so a unit test can exist.
 
+**Fix-in version gate (Sicon lines — authoritative is card / thin-brief Fix in, not git branch name alone):**
+
+| Fix in | New test *files* | Prove duty |
+|--------|------------------|------------|
+| **270** (mainline; often a **new feature** or **testing failure** tip — not only a cherry destination) | Allowed when an **existing** unit-testable seam warrants them (rules below) | Detect stack → add if warranted → run splash-overlapping → fail closed on red |
+| **260** or any other non-270 line | **Forbidden** — do not create tests; do not edit `*.csproj` / `*.sln` for Prove | Build touched project(s) + run splash-overlapping tests that **already** exist; note in chat “Prove: no new tests (Fix-in ≠ 270)” |
+
+Gate on the **Fix in** version string (e.g. contains `270` as the implementation line). Do **not** infer “tests OK” from `origin/dev` / branch prefix alone when Fix in is 260.
+
+**Cherry / follow-up to another version** (incl. after fullmonty when the user asks to cherry): default **product paths only**. Omit new/changed test artifacts and project-file churn unless the user explicitly Joins test/project-file carry:
+- .NET: `*Tests*` / `*Tests*.csproj` (and sibling test project paths)
+- Hub / Vitest / Jest-style: `*.test.ts`, `*.test.tsx`, `*.test.js`, `*.test.jsx`, `*.spec.ts`, `*.spec.tsx`, `*.spec.js`, `*.spec.jsx`, plus `__tests__/**`
+- Project files: `*.csproj`, `*.sln` (and equivalent solution/project manifests when Prove added them)
+
+Typical durable shape: tip on **270** (tests stay on 270) → cherry product-only to **260**.
+
 1. **Detect test stack** on each write root — prefer the stack that matches **splash paths**, not a blind first-match when both exist:
    - If any in-scope splash path is `*.cs` / `*.csproj` and a .NET test project exists → use Approvals / Platform / .NET (`*Tests*.csproj` or MSTest/NUnit/xUnit under the solution, e.g. `Sicon.Web.WAP.Tests`).
    - Else if any in-scope splash path is `*.ts` / `*.tsx` / `*.js` / `*.jsx` and `vitest` is in `package.json` → use Hub / JS-TS (`test:ci:unit` / `vitest run` with a file or name filter; avoid interactive `--ui`).
    - Else first present match: Hub / JS-TS (`vitest`) → .NET test projects → `verify:agent` / `Verify-Agent.ps1` / thin-brief or plan-stated test commands.
    - No stack found → note in chat; cannot invent a new test framework. Still fail closed if a named verify script exists and fails.
-2. **Add a test only when behaviour already lives on a unit-testable seam** — an **existing** pure helper, formatter, mapper, validator, or similar type (including a small pure change to one). Match existing test style/layout. **Absence of a prior test for that existing type is not a skip** — create one in the detected project.
-   - **Forbidden:** a new class, struct, interface, or file created **only** to host a test (e.g. extracting page/grid logic into a `*Policy` / `*Rules` type solely so Prove can unit-test it). That is **out of splash**.
-   - “Extract a tiny testable seam” means reuse or lightly reshape an **already-present** pure seam. It is **not** a license to add a type the product did not need.
-3. **When behaviour is not unit-testable without a new type** (e.g. WebForms page + session + DevExpress controls): say so in chat; prove at the **existing** seam — build the touched project(s) and run splash-overlapping tests that **already** cover those paths/types when they exist. Do **not** fail closed by manufacturing a class.
-4. **Run splash-overlapping tests** — at least any new/changed tests for existing types; also run existing tests that clearly cover splash paths/types when cheap to filter (name/path filter). Full-suite only when already the repo’s verify:agent default or splash is tiny.
-5. **Fail closed** — exit ≠ 0 → fix → re-run. Ad-hoc shell string checks are **not** a substitute when a test stack exists. Do not claim done on red.
-6. When Superpowers/SDD is **user-pinned**: still prefer red–green task split; same detect/add/run rules apply (still no invented types for tests).
+2. **Add a test only when Fix-in is 270 and** behaviour already lives on a unit-testable seam — an **existing** pure helper, formatter, mapper, validator, or similar type (including a small pure change to one). Match existing test style/layout. On Fix-in **270**, absence of a prior test for that existing type is **not** a skip — create one in the detected project **without** `.csproj`/`.sln` surgery when the project already picks up new files by convention; otherwise prefer build + existing tests or ask Join for project files.
+   - **Forbidden (any Fix-in):** a new class, struct, interface, or file created **only** to host a test (e.g. extracting page/grid logic into a `*Policy` / `*Rules` type solely so Prove can unit-test it). That is **out of splash**.
+   - **Forbidden (any Fix-in):** a new public/static/private method that only forwards to an existing in-repo accessor (SettingsManager, factory, etc.) so Prove has a named seam. Stub / exercise the real gate instead.
+   - **Forbidden when Fix-in ≠ 270:** any new test file, and any Prove-driven edit to `*.csproj` / `*.sln`.
+   - “Extract a tiny testable seam” means reuse or lightly reshape an **already-present** pure seam. It is **not** a license to add a type or thin wrap the product did not need.
+3. **When behaviour is not unit-testable without a new type** (e.g. WebForms page + session + DevExpress controls), **or Fix-in ≠ 270:** say so in chat; prove at the **existing** seam — build the touched project(s) and run splash-overlapping tests that **already** cover those paths/types when they exist. Do **not** fail closed by manufacturing a class or by adding tests on a non-270 line.
+4. **Run splash-overlapping tests** — at least any new/changed tests for existing types (**270 only**); also run existing tests that clearly cover splash paths/types when cheap to filter (name/path filter). Full-suite only when already the repo’s verify:agent default or splash is tiny.
+5. **Fail closed** — exit ≠ 0 → fix → re-run. Ad-hoc shell string checks are **not** a substitute when a test stack exists. Do not claim done on red. Skipping **new** tests on non-270 is **required**, not a Prove breach.
+6. When Superpowers/SDD is **user-pinned**: still prefer red–green task split; same detect/add/run rules apply (still no invented types for tests; still no new tests when Fix-in ≠ 270).
 
 ### Optional hardening offer (user-driven; not a must)
 
@@ -576,12 +604,37 @@ For **each write root**:
 1. Confirm checkout is that root’s working branch.
 2. **Commit** with the **accepted** (or fullmonty-drafted) commit message (product commit conventions and org commit rules) when there are uncommitted tip changes. If the tip is already committed and only needs push/PR update, skip an empty commit.
 3. **Push** (`-u` if needed). If remote already has the tip, skip a no-op push.
-4. **ADO PR** using the **accepted** (or fullmonty-drafted) PR title/body when applicable — **reuse, do not duplicate:**
-   - Resolve git `ApiBase` via ado-core. **Prefer `Resolve-AdoCorePullRequestId`** when you need one PR id (reuse, CodeAnt, `/pr-clearance`). If you call `Get-AdoCoreOpenPullRequestsForBranch` instead, handle the list explicitly: **0** → create; **1** → reuse that `pullRequestId`; **>1** → fail closed or ask which id — do **not** silently take the first.
+4. **ADO PR** using the **accepted** (or fullmonty-drafted) PR title/body when applicable — **reuse, do not duplicate.** Before the first ado-core ship call this session, run **`Get-Help <Name> -Parameter *`** (or `-Full`) for each function you will call — do **not** invent `-WorkspaceRoot` on ApiBase/Endpoints helpers.
+   - **Ship ado snippet** (copy shape; same pattern as nineyards — resolve endpoints once, pass real params). Under StrictMode, **init** `$prId = 0` / `$created = $null` before Resolve so a failed lookup does not abort on an unset variable:
+
+```powershell
+$ep = Resolve-AdoCoreEndpoints -WorkspaceRoot $repo
+$branch = (git -C $repo branch --show-current).Trim()
+$prId = 0
+try {
+  $prId = Resolve-AdoCorePullRequestId -ApiBase $ep.ApiBase -SourceBranch $branch
+} catch {
+  # Only "none open" → create. Multiple PRs / other lookup failures → fail closed (do not create a duplicate).
+  if ($_.Exception.Message -match '(?i)No active pull request') { $prId = 0 }
+  else { throw }
+}
+if ($prId -gt 0) {
+  $pr = Get-AdoCorePullRequest -PullRequestId $prId -ApiBase $ep.ApiBase
+  $prUrl = Get-AdoCorePullRequestWebUrl -Endpoints $ep -PullRequestId $prId
+} else {
+  # resolve -TargetBranch (message gate / upstream / nearest merge-base — nineyards order)
+  $created = New-AdoCorePullRequest -WorkspaceRoot $repo -SourceBranch $branch `
+    -TargetBranch $target -Title $title -Description $body -WorkItemIds @($tipWiId)
+  $prId = $created.PullRequestId
+  $prUrl = $created.PrUrl   # canonical URL — prefer this over re-deriving
+}
+```
+
+   - **Prefer `Resolve-AdoCorePullRequestId -ApiBase -SourceBranch`** when you need one PR id (reuse, CodeAnt, `/pr-clearance`). If you call `Get-AdoCoreOpenPullRequestsForBranch` instead, handle the list explicitly: **0** → create; **1** → reuse that `pullRequestId`; **>1** → fail closed or ask which id — do **not** silently take the first.
    - **Exactly one open PR** on the branch → use that `pullRequestId`; do **not** create another. Update description/links only if needed; continue from CodeAnt / clearance on that id.
-   - **None open** → resolve **target branch** (explicit target when known from message gate / user; else upstream `@{upstream}` merge target, else nearest merge-base among `origin/*` — same order as nineyards `Get-NineyardsTargetBranch.ps1` when available) → **`New-AdoCorePullRequest -TargetBranch …`** with the accepted title/body.
-   - **Must link the DLB card** (the known work-item id for this tip). Prefer create-time `workItemRefs` via ado-core (`New-AdoCorePullRequest -WorkItemIds …`) when available; otherwise link immediately after create (`Link-AdoCoreWorkItemToPullRequest` / equivalent). **Fail closed** if the tip WI is not linked — do not treat “PR opened” as ship-complete without that link.
-   - **Bonus — related WIs:** also link work items already related on the DLB card (ADO relations such as Related / Parent / Child / Predecessor / Successor collected in Phase 1). Skip duplicates of the tip id. Soft-fail on related-link errors (warn in chat; still proceed) — only the tip-id link is mandatory.
+   - **None open** → resolve **target branch** (explicit target when known from message gate / user; else upstream `@{upstream}` merge target, else nearest merge-base among `origin/*` — same order as nineyards `Get-NineyardsTargetBranch.ps1` when available) → **`New-AdoCorePullRequest -WorkspaceRoot -TargetBranch … -WorkItemIds`** with the accepted title/body. **Canonical web URL** is the return object’s **`PrUrl`** (or `Get-AdoCorePullRequestWebUrl -Endpoints $ep -PullRequestId $id` on reuse — never invent `-WorkspaceRoot` on WebUrl).
+   - **Must link the DLB card** (the known work-item id for this tip). Prefer create-time `workItemRefs` via **`New-AdoCorePullRequest -WorkItemIds …`** (happy path). Otherwise link immediately after create. **`Link-AdoCoreWorkItemToPullRequest` requires `-Endpoints` + `-WitApiBase`** (not `-WorkspaceRoot`) — resolve with `Get-AdoCoreWitApiBase -WorkspaceRoot $repo` (or nineyards `Link-NineyardsWorkItem.ps1` when present). **Fail closed** if the tip WI is not linked — do not treat “PR opened” as ship-complete without that link.
+   - **Bonus — related WIs:** also link work items already related on the DLB card (ADO relations such as Related / Parent / Child / Predecessor / Successor collected in Phase 1). Skip duplicates of the tip id. Soft-fail on related-link errors (warn in chat; still proceed) — only the tip-id link is mandatory. Same Endpoints + WitApiBase resolve as tip link.
 5. **Request CodeAnt review**.
 6. **Clearance** — see **Clearance (fullmonty)** for fullmonty; on ordinary ship, prefer `/pr-clearance` when the plugin/pack is available. When quiet (or hard-stop finalize), **append `## Clearance quality`** to the implementer brief with CodeAnt proxy counts (findings total / closed without action / fixed / review finish rounds). When clearance was skipped (tooling missing), append that under **Clearance quality** instead (do not invent counts).
 
@@ -591,12 +644,14 @@ DLB ships primarily as a **Team Marketplace plugin** (`sicon-devops-leading-brie
 
 | Clearance tooling | Behaviour |
 |-------------------|-----------|
-| **Available** — Dual Resolve finds `sicon-pr-clearance` → `scripts/pr-clearance-lib.ps1` **and** `Import-PrClearanceTools` succeeds (bound tools such as `codeant-triage` / `git-core` / `ado-core` present — lib path alone is **not** enough) | Run **`/pr-clearance <prId>`** (do not ask). Same as ordinary ship when tooling is present. |
+| **Available** — Dual Resolve finds `sicon-pr-clearance` → `scripts/pr-clearance-lib.ps1` **and** `Import-PrClearanceTools` succeeds (bound tools such as `codeant-triage` / `git-core` / `ado-core` present — lib path alone is **not** enough) | Run **`/pr-clearance <prId>`** immediately after CodeAnt (do not ask). **Drive to quiet** (or hard-stop finalize) before claiming fullmonty ship-complete when tooling is present. Success = clearance report with quiet or hard-stop — not merely “CodeAnt requested” or “clearance started”. Do **not** invent a homebrew clearance loop. |
 | **Missing** — no lib, **or** import/bind fails (e.g. clearance plugin without `codeant-triage` / `git-core`) | **Safe fallback — do not fail the tip.** Commit / push / ADO PR / CodeAnt still count as ship-complete. **Warn in chat** that clearance was skipped; name install/upgrade: Team Marketplace **Sicon PR Clearance** (`sicon-pr-clearance`) plus its tools (**codeant-triage**, **git-core**, **ado-core**), or pack dogfood `Install-UserPack -Pack pr-clearance` (pulls requires). Append brief **Clearance quality**: `skipped — clearance tooling incomplete` (or `… not installed`). Do **not** silently pretend clearance ran; do **not** invent a homebrew clearance loop. |
+
+**Mid-wait interrupt:** clearance is a **foreground** coordinator. A new user turn mid-`wait` can abort the Act path — that is environmental. Resume with **`/pr-clearance <prId>`** (Continue prior register when offered). Do not claim quiet until finalize ran.
 
 Never add `pr-clearance` to DLB `pack.json` `requires` as a substitute for the plugin surface — that only helps pack dogfood and misleads plugin installs.
 
-Full card, no more — complete thin-brief/ACs; no opportunistic extras (Minimal + YAGNI + Reuse).
+Full card, no more — complete thin-brief/ACs; no opportunistic extras (**Reuse → Minimal → YAGNI**).
 
 ### After implement — ship offer (flag off)
 
@@ -612,11 +667,11 @@ Straight `/DLB <id> implement` skips step 1. **fullmonty** skips this whole sect
 - ADO primary; Halo supports the card (never the reverse).
 - **ADO reads:** **Dual Resolve** `sicon-ado-core` → `scripts/ado-core.ps1` → verify version ≥ 0.5.0 + WI helpers → `Get-AdoCoreWorkItem -Expand all` + comments (surface `truncated`) → on miss/fail TFS REST → azgit last; no hand-rolled WIT URIs; do not `Read` ado-core.ps1.
 - **Halo:** prefer API; if case id exists and API fails → **navigate the IDE browser to the known ticket URL** (reuse Halo tab, else any tab, else `browser_navigate`). **Do not ask the user to open Halo.** Login prompt → wait; if still login, continue brief without Halo. Yield only if browser tools are missing / navigate throws, or the user declines. Never demote that ask to Enrich after a finished brief.
-- **Brief:** rich **chat** report (findings + Enrich); purge stale `{id}` paths then **trimmed implementer brief file** (no Enrich / Next / Links followed; single Brief block); stop; user need not say “enrich” — fold-ins update chat + file; Enrich is never a gate option.
-- **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the this-invoke thin brief file** as **sole** card-truth **and initial seed**; clean tree; do not re-paste the fat chat report; do not reuse prior-run briefs; **inline** unless user pinned Superpowers; **Org pack load** then Implement policy always applies.
+- **Brief:** rich **chat** report (findings + Enrich); purge stale `{id}` paths then **trimmed implementer brief file** (no Enrich / Next / Links followed; mandatory **Constitution** **Reuse → Minimal → YAGNI**; single Brief block); stop; user need not say “enrich” — fold-ins update chat + file; Enrich is never a gate option.
+- **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the this-invoke thin brief file** as **sole** card-truth **and initial seed**; clean tree; do not re-paste the fat chat report; do not reuse prior-run briefs; **inline** unless user pinned Superpowers; **Org pack load** then Implement policy (**Reuse → Minimal → YAGNI**) always applies.
 - **Org packs:** lock + `devtools/org/**` → select write-root org loaders by **frontmatter glob ∩ thin-brief Paths**, then force **Read** only that set (plus at most one pack overview); do not auto-install; do not flip `alwaysApply`; fail closed only when a **selected** content path is missing; soft-expect absence or no glob hits is not a tip block.
 - **Hard fence:** do **not** infer, offer, or auto-load Superpowers / SDD / TDD on the inline path — pin only.
-- **Ship:** parallel flag; default **offer only** after implement; on ship intent or offer-accept → **Ship message gate** before commit (nineyards-shaped prose: show drafts; **edits** or **`go`**; no AskQuestion); never land ordinary ship with an unconfirmed message. **`fullmonty`:** implement + ship **autoland** (no Enrich stop, no ship offer, no message gate — land as if **`go`**); product decisions **early** (before first edit when visible); **disregard** security broaden offers; run `/pr-clearance` when tooling resolves, else **safe fallback** (warn + skip clearance — see **Clearance (fullmonty)**; plugins cannot declare clearance as a required dep). **Reuse an open PR for the branch** via `Resolve-AdoCorePullRequestId` (or `Get-AdoCoreOpenPullRequestsForBranch` with explicit 0 / 1 / >1 handling — never silently pick the first when >1) — do not create a duplicate; **ADO PR must link the DLB work-item id** (fail closed); also link related WIs from the card when present (soft-fail); ordinary ship prefers `/pr-clearance` when available.
+- **Ship:** parallel flag; default **offer only** after implement; on ship intent or offer-accept → **Ship message gate** before commit (nineyards-shaped prose: show drafts; **edits** or **`go`**; no AskQuestion); never land ordinary ship with an unconfirmed message. **`fullmonty`:** implement + ship **autoland** (no Enrich stop, no ship offer, no message gate — land as if **`go`**); product decisions **early** (before first edit when visible); **disregard** security broaden offers; when clearance tooling resolves → **drive `/pr-clearance` to quiet** (or hard-stop finalize) before claiming ship-complete; else **safe fallback** (warn + skip — see **Clearance (fullmonty)**; plugins cannot declare clearance as a required dep). **Reuse an open PR for the branch** via `Resolve-AdoCorePullRequestId -ApiBase -SourceBranch` (Ship ado snippet; or `Get-AdoCoreOpenPullRequestsForBranch` with explicit 0 / 1 / >1 — never silently pick the first when >1) — do not create a duplicate; **ADO PR must link the DLB work-item id** (prefer `-WorkItemIds` on create; else `Link-AdoCoreWorkItemToPullRequest -Endpoints -WitApiBase`) (fail closed); also link related WIs from the card when present (soft-fail); ordinary ship prefers `/pr-clearance` when available.
 - Branch prefix follows work-item type (`bug/` / `feature/` / `chore/…`).
 - No opportunistic fixes anywhere in the chain.
 - Ignore `.eml`/`.msg` unless asked.
