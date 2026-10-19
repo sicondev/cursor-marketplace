@@ -3,7 +3,7 @@ description: Invoke DLB (Devops Leading Brief) — brief; implement inline by de
 alwaysApply: false
 ---
 
-<!-- contrib-managed: devops-leading-brief@0.3.8 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: devops-leading-brief@0.4.2 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
 
 # DLB triggers — Devops Leading Brief
 
@@ -13,7 +13,7 @@ When the user message matches a trigger below, follow **`/DLB`** and **Read** th
 
 - `/DLB <id>` or `/dlb <id>` → **brief** mode
 - `/DLB <id> implement` / `/DLB <id> and implement` / close variants → **implement** (inline unless user pins Superpowers)
-- `/DLB <id> fullmonty` / `full monty` / `full-monty` / `the full monty` (and close variants) → **implement + ship autoland** (no Enrich stop; no ship offer; no message gate; `/pr-clearance` when tooling present, else warn + skip)
+- `/DLB <id> fullmonty` / `full monty` / `full-monty` / `the full monty` (and close variants) → **implement + ship autoland** (no Enrich stop; no ship offer; no message gate; `/pr-clearance` to quiet when tooling present, else warn + skip)
 - Bare `fullmonty` (or close variants) in a thread that already ran DLB → same as implement go-ahead **plus** ship autoland
 - `/DLB` or `/dlb` (bare — then ask for the card number)
 - `load devops card <cardnumber> for context` → **brief** unless they also say implement / fullmonty / just do it / don't ask me
@@ -25,7 +25,7 @@ Also engage **Orient Q&A** when, in a thread that already ran DLB, the user asks
 
 **Brief:** Enrich in the report; **purge stale `{id}` brief files then write** thin brief; stop (unless **fullmonty**). Enrich is not a gate option.  
 **Implement:** **inline** unless the user pins Superpowers; **seed only from this-invoke thin brief** (never a prior-run file); require clean write-root tree; then **offer** ship (message gate before any commit/PR) — do not auto-ship. Hard fence: do not auto-load Superpowers / SDD / TDD.  
-**fullmonty:** implement + ship **autoland** (draft + land as if **`go`**); stop only on obvious blockers; product decisions **early** (before first edit when visible); **disregard** security broaden; `/pr-clearance` when tooling resolves, else warn + skip (plugin surface cannot require clearance). Not a rename of `/nineyards`.
+**fullmonty:** implement + ship **autoland** (draft + land as if **`go`**); stop only on obvious blockers; product decisions **early** (before first edit when visible); **disregard** security broaden; when clearance tooling resolves → **drive `/pr-clearance` to quiet** before ship-complete, else warn + skip (plugin surface cannot require clearance). **Prove:** new tests only when Fix-in is **270**; non-270 → build + existing tests; cherry follow-ups omit tests/project files unless Join. Not a rename of `/nineyards`.
 
 ## When NOT to engage
 

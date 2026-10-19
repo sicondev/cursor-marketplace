@@ -265,6 +265,16 @@ $metaStatus = [pscustomobject]@{
             content = ("## CodeAnt AI - Review Status" + [Environment]::NewLine + "| Status | Commit |" + [Environment]::NewLine + "| --- | --- |" + [Environment]::NewLine + "| Done | ``aaaaaaaa`` |")
         })
 }
+$metaStatusEmoji = [pscustomobject]@{
+    id       = 310
+    status   = 'active'
+    comments = @([pscustomobject]@{
+            id      = 1
+            author  = $codeAntAuthor
+            # Live posts prefix an emoji token before "CodeAnt AI — Review Status".
+            content = ("## " + [char]::ConvertFromUtf32(0x1F916) + " CodeAnt AI " + [char]0x2014 + " Review Status`n| Status | Commit |")
+        })
+}
 $metaGate = [pscustomobject]@{
     id       = 303
     status   = 'active'
@@ -272,6 +282,24 @@ $metaGate = [pscustomobject]@{
             id      = 1
             author  = $codeAntAuthor
             content = "## CodeAnt Quality Gate Results`n| Gate | Result |"
+        })
+}
+$metaGateEmoji = [pscustomobject]@{
+    id       = 311
+    status   = 'active'
+    comments = @([pscustomobject]@{
+            id      = 1
+            author  = $codeAntAuthor
+            content = "# :checkered_flag: CodeAnt Quality Gate Results`n| Gate | Result |"
+        })
+}
+$metaNitpicks = [pscustomobject]@{
+    id       = 312
+    status   = 'active'
+    comments = @([pscustomobject]@{
+            id      = 1
+            author  = $codeAntAuthor
+            content = "## CodeAnt Nitpicks`n<details><summary>1 code suggestion</summary></details>"
         })
 }
 $kickThread = [pscustomobject]@{
@@ -324,7 +352,10 @@ $humanMentionPrRisk = [pscustomobject]@{
 
 Assert-True (Test-IsCodeAntMetaThread -Thread $metaTicket) 'Ticket Scope Review is meta'
 Assert-True (Test-IsCodeAntMetaThread -Thread $metaStatus) 'Review Status table is meta'
+Assert-True (Test-IsCodeAntMetaThread -Thread $metaStatusEmoji) 'emoji Review Status is meta'
 Assert-True (Test-IsCodeAntMetaThread -Thread $metaGate) 'Quality Gate is meta'
+Assert-True (Test-IsCodeAntMetaThread -Thread $metaGateEmoji) 'emoji Quality Gate is meta'
+Assert-True (Test-IsCodeAntMetaThread -Thread $metaNitpicks) 'Nitpicks is meta'
 Assert-True (Test-IsCodeAntMetaThread -Thread $metaPrRisk) 'PR Risk is meta'
 Assert-True (-not (Test-IsCodeAntMetaThread -Thread $kickThread)) 'kick is not meta'
 Assert-True (-not (Test-IsCodeAntMetaThread -Thread $fileThread)) 'file thread is not meta'
@@ -334,10 +365,11 @@ Assert-True (-not (Test-IsCodeAntMetaThread -Thread $humanMentionPrRisk)) 'human
 
 $script:CodeAntStatusCalls.Clear()
 $metaCleared = Clear-CodeAntMetaThreads -PullRequestId $prId -Threads @(
-    $metaTicket, $metaStatus, $metaGate, $metaPrRisk, $kickThread, $fileThread, $humanThread, $humanMentionGate, $humanMentionPrRisk
+    $metaTicket, $metaStatus, $metaStatusEmoji, $metaGate, $metaGateEmoji, $metaNitpicks, $metaPrRisk,
+    $kickThread, $fileThread, $humanThread, $humanMentionGate, $humanMentionPrRisk
 )
-Assert-True ($metaCleared.ResolvedCount -eq 4) 'meta clear resolves four meta threads'
-Assert-True ((@($metaCleared.ThreadIds | Sort-Object) -join ',') -eq '301,302,303,308') 'meta clear thread ids'
+Assert-True ($metaCleared.ResolvedCount -eq 7) 'meta clear resolves seven meta threads'
+Assert-True ((@($metaCleared.ThreadIds | Sort-Object) -join ',') -eq '301,302,303,308,310,311,312') 'meta clear thread ids'
 foreach ($call in $script:CodeAntStatusCalls.ToArray()) {
     Assert-True ($call.Status -eq 'Closed') "meta clear uses Closed (thread $($call.ThreadId))"
 }
