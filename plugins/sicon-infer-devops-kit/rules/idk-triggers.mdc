@@ -1,5 +1,5 @@
 ---
-description: Invoke IDK (Infer DevOps Kit) — recommend approach; continue proceeds to next step
+description: Invoke IDK (Infer DevOps Kit) — recommend approach; ask whether to proceed (fallback DLB disclosed with specific firm-up info; continue always offered)
 alwaysApply: false
 ---
 
@@ -7,7 +7,7 @@ alwaysApply: false
 
 # IDK triggers — Infer DevOps Kit
 
-When the user message matches a trigger below, follow **`/IDK`** and **Read** the IDK skill in full — **Dual Resolve** `sicon-infer-devops-kit` → `skills/infer-devops-kit/SKILL.md` (plugin direct → newest `plugins/marketplaces|cache` bounded → user-pack skills dogfood only if no plugin; never prefer pack). Do **not** load a skill from any other path substring.
+When the user message matches a trigger below, follow **`/IDK`** — **Skill (Dual Resolve — load once):** resolve paths only first — `sicon-infer-devops-kit` → `skills/infer-devops-kit/SKILL.md` (plugin direct → newest `plugins/marketplaces|cache` bounded → user-pack skills dogfood only if no plugin; never prefer pack) — then Read exactly the one resolved file in full. Do **not** Read any other copy of this skill this invoke (if a copy was already loaded this turn, reuse it — this resolve applies from the next invoke).
 
 ## Engage when any
 
@@ -15,9 +15,10 @@ When the user message matches a trigger below, follow **`/IDK`** and **Read** th
 - `/IDK` or `/idk` (bare — then ask for the card number)
 - Clear "infer devops kit" / "IDK" with a card number → **recommend**
 - Frozen card / study sheet asking which implement approach → **recommend**
-- **Same-thread proceed** after an IDK `Recommendation:` in this thread: `continue`, `go ahead`, `yes`, `do it`, `proceed`, `then`, `ok`, `yep`, or path pin `inline` / `dlb` / `lb` / `devops leading brief` / `superpowers` → **proceed** (dispatch per skill; do not re-classify)
+- **Same-thread proceed** after an IDK `Recommendation:` proceed question in this thread: `continue`, `go ahead`, `yes`, `do it`, `proceed`, `ok`, `yep`, or path pin `inline` / `dlb` / `lb` / `devops leading brief` / `superpowers` → **proceed** (dispatch per skill; do not re-classify)
+- **Same-thread supply-info** after an IDK `Recommendation: … (fallback)` in this thread: extra context answering the named firm-up items, instead of a proceed answer → **supply info** (re-classify from context per skill; do not dispatch)
 
-**Recommend:** two-line body + `→ continue`. **Proceed:** Inline implement / DLB brief / Superpowers per prior Recommendation (user path pin wins). Never stack DLB + Superpowers.
+**Recommend:** two-line body + `Proceed with <lane>?` question (never `→ continue`). Fallback DLB is labelled `(fallback)`, disclosed as low confidence, and names the specific info that would firm it up; **Continue with recommendation** is always offered, fallback included. **Proceed:** Inline implement / DLB brief / Superpowers per prior Recommendation (user path pin wins). Never stack DLB + Superpowers.
 
 ## When NOT to engage
 

@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
   Isolated pr-clearance coordinator checks (fixtures; no network).
@@ -579,6 +579,14 @@ try {
     Assert-Equal $null (Get-PrClearancePolicyOverride -Register $pathReg -Finding $pathFinding) 'two consecutive path fixes are not enough'
     $pathReg = Add-PrClearanceActRegisterPathBatch -Register $pathReg -Paths @('contrib/bar.ps1') -Batch 3
     Assert-Equal 'dismiss' (Get-PrClearancePolicyOverride -Register $pathReg -Finding $pathFinding) 'third consecutive path fix exhausts that path'
+
+    $seqReg = Read-PrClearanceActRegister -RepoRoot $regRoot -PullRequestId 7
+    $seqReg = Add-PrClearanceActRegisterPathBatch -Register $seqReg -Paths @('contrib/baz.ps1')
+    Assert-Equal 1 $seqReg.pathBatches[-1].batch 'omitted -Batch auto-numbers first entry as batch 1'
+    $seqReg = Add-PrClearanceActRegisterPathBatch -Register $seqReg -Paths @('contrib/baz.ps1')
+    Assert-Equal 2 $seqReg.pathBatches[-1].batch 'omitted -Batch auto-numbers second entry as batch 2'
+    $seqReg = Add-PrClearanceActRegisterPathBatch -Register $seqReg -Paths @('contrib/baz.ps1') -Batch 9
+    Assert-Equal 9 $seqReg.pathBatches[-1].batch 'explicit -Batch is honoured'
 
     Assert-True (-not (Test-PrClearanceShouldKickAfterAct -CodeChanged:$false)) 'no product-code change -> do not kick'
     Assert-True (Test-PrClearanceShouldKickAfterAct -CodeChanged) 'product-code change -> kick'
