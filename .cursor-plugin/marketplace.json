@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.38"
+                     "version":  "0.1.39"
                  },
     "plugins":  [
                     {
@@ -52,7 +52,7 @@
                     {
                         "name":  "sicon-infer-devops-kit",
                         "source":  "./plugins/sicon-infer-devops-kit",
-                        "description":  "Infer DevOps Kit — Picks DevOps card implement lane (Inline / Devops Leading Brief / Superpowers); continue/go ahead runs that next step."
+                        "description":  "Infer DevOps Kit — Picks DevOps card implement lane (Inline / Devops Leading Brief / Superpowers); asks whether to proceed before running that next step."
                     },
                     {
                         "name":  "sicon-devops-leading-brief",

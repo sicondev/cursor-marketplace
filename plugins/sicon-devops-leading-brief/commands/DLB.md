@@ -21,7 +21,7 @@ Load ADO fix context. **Modes:** brief | implement. **Ship** is a parallel flag 
 | **Implement** | `/DLB <id> implement` **or** post-brief go-ahead | **Read this-invoke thin file** → inline (or user-pinned Superpowers) → Implement policy |
 | *(flag)* **fullmonty** | `/DLB <id> fullmonty` **or** bare `fullmonty` after brief | Implement + ship **autoland** + `/pr-clearance` when tooling present (else warn + skip) |
 
-**Skill (Dual Resolve):** Read `devops-leading-brief/SKILL.md` in full — **Dual Resolve** `sicon-devops-leading-brief` → `skills/devops-leading-brief/SKILL.md` (plugin direct → newest `plugins/marketplaces|cache` bounded → user-pack skills dogfood only if no plugin; never prefer pack). Fail closed if neither exists.
+**Skill (Dual Resolve — load once):** Resolve paths only first — `sicon-devops-leading-brief` → `skills/devops-leading-brief/SKILL.md` (plugin direct → newest `plugins/marketplaces|cache` bounded → user-pack skills dogfood only if no plugin; never prefer pack). Then Read exactly the one resolved file in full; do not Read any other copy of this skill this invoke (if a copy was already loaded this turn, reuse it — this resolve applies from the next invoke). Fail closed if neither exists.
 
 ## Usage
 

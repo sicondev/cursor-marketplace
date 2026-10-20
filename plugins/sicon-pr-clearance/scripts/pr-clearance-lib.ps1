@@ -1448,6 +1448,11 @@ function Add-PrClearanceActRegisterPathBatch {
             ForEach-Object { Get-PrClearanceNormalizedPath -Path $_ } |
             Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     )
+    # Batch is 1-based. An omitted (or non-positive) -Batch auto-numbers as the
+    # next entry so coordinators cannot silently record batch 0 for every Act.
+    if ($Batch -le 0) {
+        $Batch = @($Register.pathBatches).Count + 1
+    }
     $Register.pathBatches = @($Register.pathBatches) + [pscustomobject]@{
         batch = $Batch
         paths = $norm
