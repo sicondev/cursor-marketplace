@@ -38,19 +38,21 @@ for each finding (default):
 - Asking the user to type option labels
 - Emitting option labels in markdown “to stand in for” AskQuestion
 
-**Correct pattern:** Put the explain (or diff / rollup) in chat. **Do not list the options in chat.** End the turn by invoking **`AskQuestion`** once (at most one AskQuestion per assistant message). Wait for the tool result before continuing.
+**Correct pattern:** Put the full explain (or diff / rollup) in chat. **Do not list the options in chat.** End the turn by invoking **`AskQuestion`** once (at most one AskQuestion per assistant message). Wait for the tool result before continuing.
+
+**No naked AskQuestion (hard gate):** At an **entry gate** (Treat per finding, Fix-remaining confirm) the card is only valid immediately after its context block in the same turn — Treat: the § A explain block for this finding (Header, UAP/rule, Context, Verdict, Proposed change, Recommendation; no field omitted); escape: the tally. The discovery index is **not** a context block, and neither is an earlier finding's or earlier turn's block; a missing/stale block is emitted/re-emitted first, same turn. At a **continuation gate** (Confirm after Fix, Revise re-ask, batch accept) do **not** re-emit § A — context carries over from the answered Treat card across the implementation turn — but the card must be immediately preceded by a Confirm block (finding recap, files/behaviour changed, diff summary/stat, checks); edit/check tool output alone is not that block. A card without its applicable block is a failed turn, not a shortcut.
 
 | Rule | Why |
 |------|-----|
 | **`AskQuestion` tool call — never a typed menu** | Only the tool yields clickable cards |
 | **Do not paste option labels into chat** | Models copy them as “Reply with one of…” |
-| **Explain / diff / rollup in chat only** | Cards bury detail |
+| **Explain / diff / rollup in chat only, immediately before the card** | Cards bury detail; a card without its block gives the user nothing to decide from |
 | **`prompt` ≤ one short sentence** | e.g. `Finding #1 — how should we treat this?` |
 | **Option labels ≤ ~12 words** | Short labels in the **tool args**, not the message body |
-| **Recommended first** | Mark with `(Recommended)` on the preferred label |
+| **Recommended first** | Mark with `(Recommended)` on the preferred label — justified by the preceding block's Verdict/Recommendation |
 | **No pack-added freeform option** | Do **not** add `Something else` / `Other` — Cursor may inject `Other…` itself |
 
-If **`AskQuestion` is unavailable** in this session: say so in one line and ask the same choice in a single short prose question (still no multi-line option dump).
+If **`AskQuestion` is unavailable** in this session: say so in one line, emit the same context block first, then ask the same choice in a single short prose question after it (still no multi-line option dump). That prose question is the complete gate for that moment — it stands in for the `AskQuestion` invocation in every stop condition below (Treat, Confirm, escape, abort gates), so the gate can complete without the tool. There is **no** host **Other…** on this path — the typed reply is the only freeform channel. Parse disposition **and** any embedded reason from that one reply (e.g. `don't fix` vs `Don't fix — will handle it separately`); do not re-ask for a reason already present.
 
 If the user picks host-provided **Other…**: ask one short free-text question in chat; map to Fix / Don't fix / Defer / revise / abort; re-`AskQuestion` if still ambiguous.
 
@@ -75,7 +77,7 @@ Sort findings by file path, then by `#` (or severity if the discovery command as
 
 ### B — Treat (`AskQuestion` tool call)
 
-**Stop condition:** This turn is incomplete unless you invoke **`AskQuestion`**. Do **not** write the options into the chat body.
+**Stop condition (two parts, both required):** This turn is incomplete unless (1) the § A explain block for **this** finding was emitted in chat in this turn, **and** (2) you then invoke **`AskQuestion`** — or, if `AskQuestion` is unavailable, ask the single short prose question after that block per § AskQuestion UX rules above, which completes this gate in its place. The card (or prose question) without (1) violates § No naked AskQuestion. Do **not** write the options into the chat body.
 
 Tool args only (ids/labels for the tool — never paste this list into chat):
 
@@ -105,8 +107,8 @@ Chat overrides for the **current** finding: "defer this", "fix it". Chat **`fix 
 ### C — Implement and confirm (Fix only)
 
 1. Apply a **minimal** fix for **this finding only**.
-2. Report in chat: what changed and `git diff` (or scoped diff) for the touched files.
-3. **Same turn:** invoke **`AskQuestion`** (do not list options in chat).
+2. After all edit/check tool calls, emit the **Confirm block** in chat (continuation gate per § No naked AskQuestion — no § A re-emit; edit-tool cards / `git diff` tool output alone do not count): finding recap (one line), files changed + behaviour, diff summary/stat (key hunks), checks run + result (or “not run”).
+3. **Immediately after that block:** invoke **`AskQuestion`** (do not list options in chat). Never go directly from an edit/check tool result to the confirm card.
 
 Tool args only:
 
@@ -117,12 +119,12 @@ Tool args only:
 | `revert` | `Revert / don't fix` |
 | `abort` | `Stop session` |
 
-- **`prompt`:** `Finding #<N> changes OK?`
+- **`prompt`:** `Finding #<N> changes OK?` — only immediately after the § C Confirm block (continuation gate, § No naked AskQuestion)
 
 | Choice | Next |
 |--------|------|
 | **accept** | Mark accepted; next finding |
-| **revise** | User guidance → adjust code → show diff → AskQuestion again until leave finding |
+| **revise** | User guidance → adjust code → new Confirm block (delta since last diff shown + checks) → AskQuestion again until leave finding |
 | **revert** | Revert this finding's local changes (best effort); record don't fix; next finding |
 | **abort** | Keep or revert current finding per user chat if unclear; session rollup → **stop** |
 | **Other…** (host) | Free-text intent; then Accept / Revise / Revert / abort as appropriate |
@@ -142,21 +144,20 @@ If the finding was **Already fixed**, do not edit; AskQuestion treat may still a
 
 ### Steps
 
-1. In chat (short): tally remaining — e.g. `Escape: 4 left — 3 Fix-targets, 1 skip.`
+1. In chat (short): tally remaining — counts plus **one concise line per in-scope finding** (current + later): `#N — location — verdict — recommendation` (evaluate any later finding not yet explained here, before the confirm card, so the user sees every target and its rationale before authorising) — e.g. `Escape: 4 left — 3 Fix-targets, 1 skip.` followed by `#2 — src/App.cs ~40 — Hit — Fix now`, `#3 — …`.
 2. **`AskQuestion` tool call** (do not list options in chat):
 
-   - **`prompt`:** `Fix remaining without per-finding prompts?`
+   - **`prompt`:** `Fix remaining without per-finding prompts?` — only immediately after the step-1 enumerated tally in the same turn (§ No naked AskQuestion)
    - Options: `Proceed (Recommended)` \| `Cancel — keep linear` \| `Stop session`
 
 3. **Cancel:** re-issue treat AskQuestion for the **current** finding. Do not implement.
 4. **Stop session:** rollup → stop.
 5. **Proceed:**
-   - Briefly evaluate any later finding not yet explained (verdict + one-line proposal — chat OK).
-   - Implement all Fix-targets (minimal diffs).
-   - Show aggregate `git diff` / summary.
-   - **`AskQuestion`:** `Batch changes OK?` → `Accept (Recommended)` \| `Revise` \| `Revert batch` \| `Stop session`
+   - Implement all Fix-targets enumerated in step 1 (minimal diffs).
+   - Show the aggregate Confirm block (targets implemented, files changed, aggregate diff summary/stat, checks).
+   - **`AskQuestion`:** `Batch changes OK?` → `Accept (Recommended)` \| `Revise` \| `Revert batch` \| `Stop session` — only immediately after the aggregate Confirm block (continuation gate, § No naked AskQuestion)
 6. **Accept** → mark Fix-targets accepted; non-fix recorded; go to session rollup.
-7. **Revise** → adjust → re-show diff → AskQuestion again.
+7. **Revise** → adjust → new aggregate Confirm block → AskQuestion again.
 8. **Revert batch** → revert this escape’s changes (best effort); resume linear loop.
 9. **Stop session** → rollup → stop.
 

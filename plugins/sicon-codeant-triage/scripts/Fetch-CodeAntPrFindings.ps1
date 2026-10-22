@@ -67,6 +67,9 @@ if ($threadsResponse.PSObject.Properties.Name -contains 'value' -and $null -ne $
 }
 
 $allFindings = @(Get-CodeAntFileFindingsFromThreads -Threads $threadList)
+# Nitpicks are comment-equivalent findings embedded in a meta thread; they join
+# the per-finding loop (and activeFindingCount) like file findings.
+$allFindings = @($allFindings) + @(Get-CodeAntNitpickFindingsFromThreads -Threads $threadList)
 $counts = Get-CodeAntFindingCounts -Findings $allFindings
 $findings = New-Object 'System.Collections.Generic.List[object]'
 $activeIndex = 0
@@ -77,6 +80,25 @@ foreach ($finding in $allFindings) {
     [void]$findings.Add($finding)
 }
 $findings = $findings
+# Quality Gate security findings stay separate: no ADO thread of their own, so
+# they are NOT folded into activeFindingCount / findingCount (consumer compat).
+# Triage is only done when activeFindingCount == 0 AND securityFindingCount == 0.
+$qualityGateParsed = Get-CodeAntQualityGateFromThreads -Threads $threadList
+$securityFindings = @()
+$qualityGate = $null
+if ($null -ne $qualityGateParsed) {
+    $securityFindings = @($qualityGateParsed.securityFindings)
+    $qualityGate = [pscustomobject]@{
+        status               = $qualityGateParsed.status
+        commit               = $qualityGateParsed.commit
+        scanTime             = $qualityGateParsed.scanTime
+        resultsUrl           = $qualityGateParsed.resultsUrl
+        metaThreadId         = $qualityGateParsed.metaThreadId
+        parentCommentId      = $(if ($qualityGateParsed.PSObject.Properties.Name -contains 'parentCommentId') { $qualityGateParsed.parentCommentId } else { $null })
+        gates                = $qualityGateParsed.gates
+        securityFindingCount = $securityFindings.Count
+    }
+}
 $retriggerMayBeInFlight = (Test-HasActiveCodeAntRetriggerThread -Threads $threadList) -or (
     Test-HasRecentCodeAntRetriggerThread -Threads $threadList
 )
@@ -87,17 +109,20 @@ if ($pr.PSObject.Properties.Name -contains 'status' -and $null -ne $pr.status) {
 }
 
 $summary = [pscustomobject]@{
-    pullRequestId      = $PullRequestId
-    title              = $pr.title
-    status             = $prStatus
-    sourceBranch       = $sourceBranch
-    targetBranch       = $targetBranch
-    prUrl              = $prUrl
-    approved           = $approved
-    activeFindingCount = $counts.active
-    fixedFindingCount  = $counts.fixed
-    findingCount       = $counts.active
-    findings           = $findings
+    pullRequestId        = $PullRequestId
+    title                = $pr.title
+    status               = $prStatus
+    sourceBranch         = $sourceBranch
+    targetBranch         = $targetBranch
+    prUrl                = $prUrl
+    approved             = $approved
+    activeFindingCount   = $counts.active
+    fixedFindingCount    = $counts.fixed
+    findingCount         = $counts.active
+    findings             = $findings
+    qualityGate          = $qualityGate
+    securityFindings     = $securityFindings
+    securityFindingCount = $securityFindings.Count
 }
 
 if ($Json) {
@@ -110,8 +135,12 @@ Write-Output ('PR: ' + $prUrl)
 Write-Output (
     'Approved (required reviewer): ' + $approved +
     ' | Active findings: ' + $counts.active +
-    ' | Fixed: ' + $counts.fixed
+    ' | Fixed: ' + $counts.fixed +
+    ' | Security findings: ' + $securityFindings.Count
 )
+if ($null -ne $qualityGate) {
+    Write-Output ('Quality Gate: ' + $qualityGate.status + $(if ($qualityGate.resultsUrl) { ' | ' + $qualityGate.resultsUrl } else { '' }))
+}
 Write-Output ''
 
 if (-not $approved) {
@@ -124,17 +153,23 @@ if ($retriggerMayBeInFlight -and $counts.active -gt 0) {
     Write-Output ''
 }
 
-if ($findings.Count -eq 0) {
+if ($findings.Count -eq 0 -and $securityFindings.Count -eq 0) {
     Write-Output '>> No unresolved CodeAnt file comments on this PR.'
     return
 }
 
 foreach ($finding in $findings) {
-    Write-Output ('**Path:** ' + $finding.Path)
-    if ($finding.Line) {
-        Write-Output ('**Line:** ' + $finding.Line)
-    }
-    Write-Output '**Comment:**'
-    Write-Output $finding.Comment
+    Write-Output (Get-CodeAntFindingScaffold -Finding $finding -Heading "Finding #$($finding.Number) of $($findings.Count)")
     Write-Output ''
+}
+
+if ($securityFindings.Count -gt 0) {
+    Write-Output '## Quality Gate security findings (no per-finding ADO thread - see triage disposition model)'
+    $secIndex = 0
+    foreach ($sec in $securityFindings) {
+        $secIndex++
+        Write-Output (Get-CodeAntFindingScaffold -Finding $sec -Heading "Security finding #S$secIndex of $($securityFindings.Count)")
+        if ($sec.resultsUrl) { Write-Output ''; Write-Output '**Results**'; Write-Output $sec.resultsUrl }
+        Write-Output ''
+    }
 }

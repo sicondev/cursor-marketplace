@@ -24,6 +24,10 @@ Assert-True (-not [string]::IsNullOrWhiteSpace([string]$out.reason)) 'fuse dismi
 Assert-True ([string]$out.reason -match 'not a file') 'out-of-PR reason is everyday language'
 Assert-True ([string]$out.reason -notmatch 'UAP|CAP-|codeant') 'reason has no catalog jargon'
 
+$pathless = [pscustomobject]@{ Id = 'qualitygate-902-1'; Number = 9; Path = ''; Line = ''; Comment = 'Secrets quality gate failed; no file/line detail was posted in ADO.' }
+$pathlessDecision = Get-PrClearancePolicyDecision -Finding $pathless -Register $reg -ChangedPaths $prPaths
+Assert-Equal 'continue' $pathlessDecision.action 'pathless finding is not dismissed as out-of-PR (specialist locates it)'
+
 $snap = New-PrClearanceActRegister -PullRequestId 2
 $snap = Set-PrClearanceFindingPathSnapshot -Register $snap -Findings @([pscustomobject]@{ Path = 'src/Foo.cs' }) -ChangedPaths @('src/Foo.cs')
 $later = [pscustomobject]@{ Id = 't3'; Number = 3; Path = 'src/New.cs'; Line = '1'; Comment = 'late' }

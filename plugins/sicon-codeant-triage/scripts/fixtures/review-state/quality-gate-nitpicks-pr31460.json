@@ -1,0 +1,30 @@
+{
+  "value": [
+    {
+      "id": 178822,
+      "comments": [
+        {
+          "id": 1,
+          "author": {
+            "displayName": "Code Ant"
+          },
+          "content": "# :checkered_flag: CodeAnt Quality Gate Results\n\n**Commit:** `cbc1427d`\n**Scan Time:** 2026-10-22 08:30:21 UTC\n\n## :x: Overall Status: FAILED\n\n## Quality Gate Details\n\n| Quality Gate | Status | Details |\n|--------------|--------|---------|\n| **Secrets** | :x: FAILED | 1 secret found |\n| **Duplicate Code** | :white_check_mark: PASSED | 0.0% duplicated |\n| **SAST** | :white_check_mark: PASSED | No security issues |\n| **IAC** | :white_check_mark: PASSED | No IAC issues |\n\n[View Full Results](https://app.codeant.ai/quality-gates/results?repo=SiconProductsGit/Sicon/ai-devtools&commit_id=cbc1427dc6e7a921f652dce057b81bcf2c7acbf9&service=azure-devops)\n\n[![Fix in Cursor](https://new-codeant-butcket.s3.us-west-1.amazonaws.com/badges/fix-in-cursor-flat.svg)](https://app.codeant.ai/fix-in-ide?tool=cursor&prompt_id=e2d01c2917b340ccb77cadce82a7da95&service=azure-devops&base_url=https%3A%2F%2Ftfs.sicon.co.uk%3A8443%2Ftfs&org=SiconProductsGit&repo=SiconProductsGit%2Fai-devtools) [![Fix in VSCode Claude](https://new-codeant-butcket.s3.us-west-1.amazonaws.com/badges/fix-in-vscode-claude-flat.svg)](https://app.codeant.ai/fix-in-ide?tool=vscode-claude&prompt_id=e2d01c2917b340ccb77cadce82a7da95&service=azure-devops&base_url=https%3A%2F%2Ftfs.sicon.co.uk%3A8443%2Ftfs&org=SiconProductsGit&repo=SiconProductsGit%2Fai-devtools)\n\n<details>\n<summary>View Failure Result</summary>\n\n<details>\n<summary>:closed_lock_with_key: Secrets — 1 findings</summary>\n\n| File | Line | Type | Confidence |\n|------|------|------|------------|\n| contrib/codeant-triage/content/scripts/Get-CodeAntPromotePreference.ps1 | 151 | Cryptographic Key Material | HIGH |\n\n</details>\n\n</details>\n",
+          "publishedDate": "2026-10-21T16:08:59.077Z"
+        }
+      ]
+    },
+    {
+      "id": 178827,
+      "comments": [
+        {
+          "id": 1,
+          "author": {
+            "displayName": "Code Ant"
+          },
+          "content": "## CodeAnt Nitpicks\n\n<!-- codeant-nitpicks:pr_code_suggestions:start -->\n<details>\n<summary><strong>2 code suggestions</strong></summary>\n\n#### 1. This fallback asks for a prose choice when the tool is absent, but the hard rule and treat stop condition still require `AskQuestion`, leaving no compliant way to collect it.\n\nApi mismatch · [`contrib/codeant-triage/adapters/cursor/commands/codeant-triage.md:197`](https://tfs.sicon.co.uk:8443/tfs/SiconProductsGit/Sicon/_git/ai-devtools/pullrequest/31460?_a=files&path=contrib/codeant-triage/adapters/cursor/commands/codeant-triage.md&line=197&lineEnd=197&lineStartColumn=1&lineEndColumn=2147483647)\n\n---\n\n#### 2. The prose fallback conflicts with this loop&#x27;s hard rule and treat stop condition, which still require `AskQuestion`; without the tool, the treat gate has no compliant completion path.\n\nApi mismatch · [`contrib/codeant-triage/content/uapscan-fix-loop.md:55`](https://tfs.sicon.co.uk:8443/tfs/SiconProductsGit/Sicon/_git/ai-devtools/pullrequest/31460?_a=files&path=contrib/codeant-triage/content/uapscan-fix-loop.md&line=55&lineEnd=55&lineStartColumn=1&lineEndColumn=2147483647)\n\n</details>\n<!-- codeant-nitpicks:pr_code_suggestions:end -->",
+          "publishedDate": "2026-10-21T16:12:40.99Z"
+        }
+      ]
+    }
+  ]
+}

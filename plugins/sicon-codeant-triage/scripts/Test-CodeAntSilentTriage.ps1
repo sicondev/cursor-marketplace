@@ -151,6 +151,21 @@ if ($junctionMade) {
 Remove-Item -LiteralPath $junctionRoot -Recurse -Force -ErrorAction SilentlyContinue
 Remove-Item -LiteralPath $junctionOutside -Recurse -Force -ErrorAction SilentlyContinue
 
+# Pathless findings: empty Path in, discovered paths out (never '' out).
+$pathless = [pscustomobject]@{ Id = 'qualitygate-902-1'; Number = 1; Path = ''; Line = ''; Comment = 'Secrets quality gate failed; no file/line detail was posted in ADO.' }
+$located = Invoke-CodeAntSilentTriage -Path '' -Issues @($pathless) -PullRequestId 3 -WorkspaceRoot 'C:\tmp' -PreparedResults @(
+    [pscustomobject]@{
+        Id = 'qualitygate-902-1'; Number = 1; disposition = 'fixed'; reason = 'located and removed the credential'
+        already = $false
+        report = [pscustomobject]@{ issue = 'x'; change = 'y'; justification = 'z'; paths = @('src/Located.cs') }
+    }
+)
+Assert-Equal 'fixed' $located.results[0].disposition 'pathless issue can be fixed by the specialist'
+Assert-True (@($located.paths) -contains 'src/Located.cs') 'pathless fix reports the discovered path'
+Assert-True (@($located.paths) -notcontains '') 'pathless result paths never contain empty string'
+$pathlessAwait = Invoke-CodeAntSilentTriage -Path '' -Issues @($pathless) -PullRequestId 3
+Assert-Equal 'ask' $pathlessAwait.results[0].disposition 'pathless unfilled call is ask pending'
+
 $mdPath = Join-Path (Split-Path -Parent $scriptDir) 'codeant-silent-triage.md'
 $md = Get-Content -LiteralPath $mdPath -Raw
 Assert-True ($md -match 'Do not') 'silent-triage md forbids AskQuestion/finalize in prose'
@@ -171,6 +186,9 @@ if (Test-Path -LiteralPath $commandPath -PathType Leaf) {
     $commandMd = Get-Content -LiteralPath $commandPath -Raw
     Assert-True ($commandMd -match '\*\*WontFix Reason:\*\*') 'CodeAnt WontFix replies use the dedicated reason label'
     Assert-True ($commandMd -match '(?i)never put a WontFix reason on.+\*\*Fix:\*\*') 'CodeAnt command forbids Fix labels for WontFix'
+    Assert-True ($commandMd -match '(?i)few-shot') 'CodeAnt command shows a few-shot correct Treat turn'
+    Assert-True ($commandMd -match '(?i)scaffold') 'CodeAnt command uses the fetch explain scaffold'
+    Assert-True ($commandMd -match '(?i)blocked sections') 'CodeAnt command requires blocked-section explain blocks, not wall-of-text'
 }
 
 if ($failures.Count -gt 0) {

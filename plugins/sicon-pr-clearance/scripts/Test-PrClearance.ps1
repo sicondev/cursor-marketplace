@@ -1,4 +1,4 @@
-﻿#Requires -Version 5.1
+#Requires -Version 5.1
 <#
 .SYNOPSIS
   Isolated pr-clearance coordinator checks (fixtures; no network).
@@ -483,7 +483,7 @@ finally {
 }
 
 Reset-PrClearanceRegistry
-foreach ($n in @('Get-CodeAntReviewState', 'Request-CodeAntReview', 'Get-CodeAntReviewFindings', 'Complete-CodeAntReviewFinding', 'Clear-CodeAntReviewRequests', 'Invoke-CodeAntSilentTriage')) {
+foreach ($n in @('Get-CodeAntReviewState', 'Request-CodeAntReview', 'Get-CodeAntReviewFindings', 'Complete-CodeAntReviewFinding', 'Complete-CodeAntReviewMetaFindings', 'Clear-CodeAntReviewRequests', 'Invoke-CodeAntSilentTriage')) {
     if (Get-Command -Name $n -ErrorAction SilentlyContinue) {
         Remove-Item -Path "Function:$n" -ErrorAction SilentlyContinue
         Remove-Item -Path "Function:global:$n" -ErrorAction SilentlyContinue
@@ -512,7 +512,7 @@ Register-PrClearanceTool -ToolId 'codeant-triage' -Load {
     'Complete-ReviewFinding' = { }
 }
 Import-PrClearanceTools -Config (Get-PrClearanceBindConfig -PackRoot $packRoot)
-foreach ($n in @('Get-CodeAntReviewState', 'Request-CodeAntReview', 'Get-CodeAntReviewFindings', 'Complete-CodeAntReviewFinding', 'Clear-CodeAntReviewRequests', 'Invoke-CodeAntSilentTriage')) {
+foreach ($n in @('Get-CodeAntReviewState', 'Request-CodeAntReview', 'Get-CodeAntReviewFindings', 'Complete-CodeAntReviewFinding', 'Complete-CodeAntReviewMetaFindings', 'Clear-CodeAntReviewRequests', 'Invoke-CodeAntSilentTriage')) {
     Assert-True ($null -ne (Get-Command -Name $n -ErrorAction SilentlyContinue)) "$n is visible after Import-PrClearanceTools"
 }
 
