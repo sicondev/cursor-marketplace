@@ -21,6 +21,14 @@ Assert-Equal 2 $groups.Count 'two paths'
 $foo = @($groups | Where-Object { $_.Path -eq 'src/foo.cs' })[0]
 Assert-Equal 2 @($foo.Issues).Count 'Foo.cs has two issues'
 
+$d = [pscustomobject]@{ Id = 'qualitygate-902-1'; Number = 4; Path = ''; Line = ''; Comment = 'Secrets quality gate failed; no file/line detail was posted in ADO.' }
+$e = [pscustomobject]@{ Id = 'qualitygate-902-2'; Number = 5; Path = ''; Line = ''; Comment = 'SAST quality gate failed; no file/line detail was posted in ADO.' }
+$groupsWithPathless = @(Group-PrClearancePassFindingsByPath -Findings @($a, $d, $e))
+Assert-Equal 2 $groupsWithPathless.Count 'pathless findings form one extra group'
+$emptyGroup = @($groupsWithPathless | Where-Object { $_.Path -eq '' })[0]
+Assert-True ($null -ne $emptyGroup) 'empty-path group exists'
+Assert-Equal 2 @($emptyGroup.Issues).Count 'both pathless findings share the empty group'
+
 $mixedThrew = $false
 try {
     $null = Invoke-PrClearanceSpecialist -Path 'src/Foo.cs' -Issues @($a, $b) -PullRequestId 1
@@ -99,6 +107,19 @@ $gotPrep = Invoke-PrClearanceSpecialist -Path 'src/Foo.cs' -Issues @($a) -PullRe
 Assert-True ($null -ne $script:capturedPrepared) 'PreparedResults is forwarded to Invoke-Specialist'
 Assert-Equal '1' @($script:capturedPrepared)[0].Id 'PreparedResults Id forwarded'
 Assert-Equal 'fixed' $gotPrep.results[0].disposition 'prepared disposition returned'
+
+# Empty Path dispatches to the specialist (it locates the issue; paths come back).
+$script:capturedEmptyPath = $null
+Register-PrClearanceTool -ToolId 'codeant-triage' -Operations @{
+    'Invoke-Specialist' = {
+        param($Path, $Issues, $PullRequestId, $WorkspaceRoot, $PreparedResults)
+        $script:capturedEmptyPath = $Path
+        return [pscustomobject]@{ results = @(); paths = @('src/Located.cs') }
+    }
+} -Load {}
+$emptyDispatch = Invoke-PrClearanceSpecialist -Path '' -Issues @($d, $e) -PullRequestId 9
+Assert-Equal '' $script:capturedEmptyPath 'empty Path is dispatched, not rejected'
+Assert-Equal 'src/Located.cs' @($emptyDispatch.paths)[0] 'specialist-reported path flows back for pathless group'
 
 $absThrew = $false
 try {

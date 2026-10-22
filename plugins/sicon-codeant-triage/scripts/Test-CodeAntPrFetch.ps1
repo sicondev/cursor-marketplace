@@ -28,6 +28,11 @@ if ($null -eq $json.pullRequestId) { throw 'Missing pullRequestId in JSON respon
 if (-not ($json.PSObject.Properties.Name -contains 'findings')) { throw 'Missing findings array in JSON response.' }
 if (-not ($json.PSObject.Properties.Name -contains 'activeFindingCount')) { throw 'Missing activeFindingCount in JSON response.' }
 if (-not ($json.PSObject.Properties.Name -contains 'fixedFindingCount')) { throw 'Missing fixedFindingCount in JSON response.' }
+if (-not ($json.PSObject.Properties.Name -contains 'qualityGate')) { throw 'Missing qualityGate in JSON response.' }
+if (-not ($json.PSObject.Properties.Name -contains 'securityFindings')) { throw 'Missing securityFindings in JSON response.' }
+if (-not ($json.PSObject.Properties.Name -contains 'securityFindingCount')) { throw 'Missing securityFindingCount in JSON response.' }
+if ([int]$json.securityFindingCount -ne @($json.securityFindings).Count) { throw 'securityFindingCount does not match securityFindings.' }
+if ($null -ne $json.qualityGate -and [int]$json.qualityGate.securityFindingCount -ne [int]$json.securityFindingCount) { throw 'qualityGate.securityFindingCount does not match securityFindingCount.' }
 
 if ($json.activeFindingCount -lt 1) {
     Write-Output "OK: PR $PullRequestId fetch succeeded with 0 active findings (structure valid, fixed=$($json.fixedFindingCount))."

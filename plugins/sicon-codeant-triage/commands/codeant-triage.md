@@ -47,7 +47,7 @@ fetch → sort findings → for each finding (default):
 
 optional mid-loop escape (not silent):
   chat "fix all" / "fix remaining" OR treat option Fix remaining
-  → AskQuestion confirm batch → implement Fix-targets → one batch confirm → rollup
+  → AskQuestion confirm batch → implement Fix-targets → one batch confirm → security loop if security findings remain, else rollup
 ```
 
 **Never** replace an AskQuestion tool call with chat text like `Reply with one of: Fix | Won't fix | …`.
@@ -63,6 +63,7 @@ optional mid-loop escape (not silent):
 
 1. **Default = one finding at a time** — finish treat AskQuestion and (if Fix) accept/confirm before starting the next.
 2. **Detail in chat; choices only via `AskQuestion` tool call** — never typed menus, never “Reply with one of…”, never paste option labels into chat.
+2a. **No naked AskQuestion** — an entry-gate `AskQuestion` (Treat/catalog/finalize) is forbidden unless its context block (§ A explain, promote summary, rollup) was emitted in chat **in the same turn, immediately before the call**; a continuation gate (Confirm) instead requires the § C Confirm block at the end of its implementation cycle, without re-emitting § A (§ No naked AskQuestion). A card preceded by neither — only by silent tool activity — is a failed turn, however well-labelled its options are.
 3. **Fix means implement in that cycle** — then confirm before moving on. Do not batch-evaluate all findings then ask once **as the default**.
 4. **No silent batch fixes** — `fix all` / `fix remaining` require an **`AskQuestion` confirm** (§ Early escape), then one batch accept — never implement without that gate.
 5. **No commit / push / ADO posts** until the session rollup and finalize AskQuestion.
@@ -80,7 +81,7 @@ When the user supplies a PR id and no pasted blocks:
    powershell -NoProfile -File "$triage\Fetch-CodeAntPrFindings.ps1" -PullRequestId <id> [-Repository <repo>]
    ```
 
-2. **Stop without triaging** when **`activeFindingCount == 0`**.
+2. **Stop without triaging** only when **`activeFindingCount == 0` AND `securityFindingCount == 0`**. The fetch consolidates one ADO thread snapshot into two queues: `findings` (file threads + **Nitpicks** suggestions, normalised to Path/Line/Comment) is triaged in the suggestion loop below; `securityFindings` (rows from the **Quality Gate Results** meta comment, incl. the collapsed File/Line detail table) follow in a separate **security loop**. A Quality Gate can FAIL with zero file comments — never trust `activeFindingCount` alone.
 3. **Align local branch** to the PR source branch when not already on it.
 4. Continue with mandatory reads and **Setup — index**, then the **per-finding loop**.
 
@@ -116,7 +117,7 @@ powershell -NoProfile -File "$triage\Fetch-CodeAntPrFindings.ps1" -PullRequestId
 
 | Type | Examples | Behaviour |
 |------|----------|-----------|
-| **Trivial** | Typos in comments/docs | Shorter explain block OK; still one AskQuestion; default recommend **Fix** |
+| **Trivial** | Typos in comments/docs | Shorter explain block OK (Header / CodeAnt said / Verdict / Recommendation minimum — never no block); still one AskQuestion; default recommend **Fix** |
 | **Rule-shaped** | XML docs, catch clauses, security, logic | Full explain + catalog / rule cross-check |
 
 ## Setup — short index (once)
@@ -136,7 +137,13 @@ Optional index (location only):
 | 1 | Critical | `Example.cs` ~40 |
 | 2 | Major | `Other.cs` ~12 |
 
-Then start finding **#1** immediately (do not AskQuestion for batch strategy).
+If `securityFindingCount > 0`, add a security index after it (location + gate/type only, numbered `S1…`, with the Quality Gate overall status and `resultsUrl` as an evidence pointer — never open it in a browser; triage runs browser-free and resolves from ADO + code evidence):
+
+| # | Gate | Location |
+|---|------|----------|
+| S1 | Secrets | `Example.ps1` ~151 |
+
+Then start finding **#1** immediately when suggestion findings exist (do not AskQuestion for batch strategy); when there are no suggestion findings, go straight to security finding **#S1**. The index is location-only — it is **not** the § A block and never licenses finding #1's (or #S1's) treat card (§ No naked AskQuestion). Work the whole suggestion loop (file + Nitpicks findings) first, then the **security loop**: each security finding gets the same § A explain → Treat → (Fix) Confirm cycle, headed `Security finding #S<N>`, with CodeAnt said = gate, type, line and confidence from the finding, and Proposed change scoped to the flagged code. A gate-level security finding with no path/line is still explained and treated — propose locating the issue in the PR diff from its gate/type context; never invent a location.
 
 ## AskQuestion UX rules (non-negotiable)
 
@@ -147,20 +154,83 @@ Then start finding **#1** immediately (do not AskQuestion for batch strategy).
 - Writing `Reply with one of:` / `Choose:` / numbered `1. Fix` / pipe lists `Fix | Won't fix | Skip` in the chat message
 - Asking the user to type `Fix` / `Won't fix` / `Skip`
 - Emitting option labels in markdown “to stand in for” AskQuestion
+- **Invoking `AskQuestion` without the context block for this finding in the same turn** — e.g. opening the turn with the card, or treating the header/index, the fetch output, or an “Asking questions…” placeholder as if it were the explain block. The card asks for a decision the user has been given nothing to decide from.
+- Skipping or abbreviating-away the § A block because the finding “looks obvious”, the user seems in a hurry, or a (Recommended) label feels self-explanatory
 
-**Correct pattern:** Put the explain (or diff / rollup) in chat. **Do not list the options in chat.** End the turn by invoking **`AskQuestion`** once (at most one AskQuestion per assistant message). Wait for the tool result before continuing.
+**Correct pattern:** Put the explain (or diff / rollup) in chat. **Do not list the options in chat.** Then, in the same turn, invoke **`AskQuestion`** once (at most one AskQuestion per assistant message). Wait for the tool result before continuing.
+
+The non-JSON fetch output prints a **§ A scaffold per finding** (Header / CodeAnt said pre-filled; Context, Rule cross-check, Verdict, Proposed change, Recommendation as `<complete: …>` slots). Your job per finding is to **complete the slots, emit the completed block in chat, then invoke the card in the same turn** — completing an existing block, not remembering to construct one. Emitting a scaffold with `<complete: …>` slots still in it is a failed turn, exactly like emitting no block.
+
+**Format — blocked sections, always:** each field is its own block — the bold label on its **own line**, the body on the line(s) beneath it, and a **blank line between sections**. Never inline the label and body (`**Verdict:** Valid — …`) and never run the sections together into one paragraph: that wall-of-text shape is a failed block even when every field is present. Keep the scaffold's line breaks when you complete it.
+
+**Few-shot — one correct Treat turn looks like this** (chat first, card second, same turn):
+
+```markdown
+**Header**
+Finding #1 of 3 — Major — `src/App.cs` ~40
+
+**CodeAnt said**
+Avoid empty catch blocks; log or rethrow so failures are visible.
+
+**Context**
+`App.cs:38-44` swallows `HttpRequestException` from the sync call; the branch diff adds this handler and no logging exists in the file.
+
+**Rule cross-check**
+No CAP/AP row covers catch blocks; scoped UAPs and profile rules silent on this repo.
+
+**Verdict**
+Valid — a failed sync would currently look identical to a successful empty response.
+
+**Proposed change**
+Log the exception at Warning with the record id, then rethrow as the existing sync-failed result. One file, no behaviour change on the success path.
+
+**Recommendation**
+Fix now — bounded, and the silent-failure risk is real.
+```
+
+→ *then, immediately after that block and still in the same turn:* `AskQuestion` with prompt `Finding #1 — how should we treat this?` (options in tool args only). A turn that contains only tool calls (fetch, file reads, git checks), a one-line summary, or "presenting finding #1…" prose before the card is **not** this turn — it is a naked card.
+
+### No naked AskQuestion (hard gate — entry vs continuation gates)
+
+**A decision card is only valid after the context the user needs for *that* decision.** What counts as context differs by gate type — conflating them breaks the loop (notably at Confirm, below):
+
+| Gate type | Gates | Context requirement |
+|-----------|-------|---------------------|
+| **Entry gate** — first card for a finding / decision | **Treat** per finding; catalog Gate A; finalize; deepscan fix-vs-report | The full context block (§ A explain / promote summary / rollup) emitted in chat **in the same turn, immediately before the card**. Nothing earlier counts: not the Setup index, fetch JSON, an earlier turn, or an earlier finding's block. |
+| **Continuation gate** — card that follows work the user already authorised | **Confirm** after Fix, re-ask after Revise, batch-accept after Fix-remaining | **Do not re-emit § A** — that context carries over from the Treat card the user just answered, and the intervening implementation turn (edits, builds, `git diff` tool calls, the AskQuestion result boundary) does **not** stale it. Instead, the card must be immediately preceded by the § C **Confirm block** for the work just done (below). A Confirm card preceded only by silent tool activity — edits the user never saw summarised — is naked. |
+
+Required blocks:
+
+| Gate | Required block before the card |
+|------|--------------------------------|
+| **Treat** (entry, per finding) | Full § A block **for this finding #N**: Header, CodeAnt said, Context, Rule cross-check, Verdict, Proposed change, Recommendation. No field may be omitted (Trivial: shorter is OK, present is not optional — Header / CodeAnt said / Verdict / Recommendation minimum). |
+| **Confirm / Revise re-ask** (continuation) | § C Confirm block, emitted as chat at the **end of the implementation cycle**, after all edit/check tool calls and before the card: one-line finding recap, files changed + behaviour, diff summary/stat (key hunks), checks run + result (or “not run”). Edit-tool cards and `git diff` tool output alone are **not** this block — they are activity, not a decision summary. On a Revise re-ask, the block covers only what changed since the last diff shown. § A is not repeated unless the user asks or context was lost (resume/compaction — then add the one-line recap, still not the full § A). |
+| **Fix-remaining confirm** (entry for the batch decision) | The escape tally (in-scope findings with verdict + recommendation each), same turn, immediately before the card |
+| **Batch accept** (continuation) | Aggregate Confirm block: Fix-targets implemented, files changed, aggregate diff summary/stat, checks — same shape as § C, for the batch |
+| **Catalog Gate A / repo-scope / Gate B** (entry) | The promote-candidate summary in chat: finding + verdict, the generalizable pattern, and why promoting (and that scope) is proposed |
+| **Finalize** (entry) | The session rollup table + `git diff --stat`, same turn, immediately before the card |
+
+**Pre-call checklist:**
+
+1. **Entry gate?** The block above is in **this turn's chat output**, immediately before the card, and is **for the current finding/gate** — a block for finding #1 does not license the card for finding #2.
+2. **Continuation gate?** The § A context was already decided at Treat (do not re-litigate it), **and** a Confirm block for the work just performed is the last chat output before the card. If implementation happened silently (only tool calls since the Treat answer), emit the Confirm block now — never go straight from an edit/check tool result to the card.
+3. Nothing the user must read to decide exists only inside the card `prompt` or the option labels — detail lives in the block; the card only asks.
+
+**If the applicable item fails: do not invoke `AskQuestion`** — emit the missing block (entry: § A / summary / rollup; continuation: Confirm block) first, then the card. This includes after a resume / compaction, after an intervening user message (e.g. “first show me your findings/rationale” — answer by showing the block, then the card; never by the card alone), and when re-issuing a card after **Other…**. Re-emitting a block is always safe; a naked card never is.
+
+Note the asymmetry with § B's stop condition: an entry-gate turn that ends with the context block **and** the card is complete; any card without its applicable block is a **failure**, not a shortcut.
 
 | Rule | Why |
 |------|-----|
 | **`AskQuestion` tool call — never a typed menu** | Only the tool yields clickable cards |
 | **Do not paste option labels into chat** | Models copy them as “Reply with one of…” |
-| **Explain / diff / rollup in chat only** | Cards bury detail |
-| **`prompt` ≤ one short sentence** | e.g. `Finding #1 — how should we treat this?` |
+| **Context block in chat before the card** (entry: same turn; continuation: Confirm block at end of the implementation cycle, no § A re-emit) | Cards bury detail; a card without its applicable block gives the user nothing to decide from |
+| **`prompt` ≤ one short sentence** | e.g. `Finding #1 — how should we treat this?` (the verdict/reasoning belong in the preceding block, not the card) |
 | **Option labels ≤ ~12 words** | Short labels in the **tool args**, not the message body |
-| **Recommended first** | Mark with `(Recommended)` on the preferred label |
+| **Recommended first** | Mark with `(Recommended)` on the preferred label — its rationale is the block's **Verdict**/**Recommendation**, which must already be on screen |
 | **No pack-added freeform option** | Do **not** add `Something else` / `Other` — Cursor may inject `Other…` itself |
 
-If **`AskQuestion` is unavailable** in this session: say so in one line and ask the same choice in a single short prose question (still no multi-line option dump). There is **no** host **Other…** on this path — the typed reply is the only freeform channel. Parse disposition **and** any embedded reason from that one message (e.g. `won't fix` vs `Won't fix — will add a unit test later`); do not re-ask for a reason already present. See § **Won't fix — reason and optional todo**.
+If **`AskQuestion` is unavailable** in this session: say so in one line, emit the same context block first, and ask the same choice in a single short prose question after it (still no multi-line option dump). The no-naked-question gate applies identically — a prose question without its preceding block is just as naked as a card. There is **no** host **Other…** on this path — the typed reply is the only freeform channel. Parse disposition **and** any embedded reason from that one message (e.g. `won't fix` vs `Won't fix — will add a unit test later`); do not re-ask for a reason already present. See § **Won't fix — reason and optional todo**.
 
 If the user picks host-provided **Other…**: ask one short free-text question in chat; map to Fix / Won't fix / Skip / revise; re-`AskQuestion` if still ambiguous. When the free text maps to Won't fix **and** already includes a reason, capture it and **do not** ask again (same short-circuit as text fallback).
 
@@ -170,7 +240,7 @@ Sort findings **Critical → Major → Minor**, then by `#`. For **each** findin
 
 ### A — Explain (chat, read-only until user chooses Fix)
 
-Emit a detailed block:
+Emit a detailed block in **blocked sections** (label on its own line, body beneath, blank line between — see the few-shot above; a single run-on paragraph does not satisfy this section). Start from the fetch scaffold for this finding, drop its `- scaffold (…)` title line, and replace every `<complete: …>` slot — a scaffold emitted with slots remaining does not satisfy this section:
 
 | Field | Content |
 |-------|---------|
@@ -186,11 +256,11 @@ Record `threadId` / `parentCommentId` from fetch `-Json`; draft **Issue:** / **F
 
 **Duplicates:** If this finding is the same hole as an earlier finding already **Accepted**, say so (e.g. covered by #1), skip re-implement unless the user asks, and still AskQuestion if ADO action might differ.
 
-**After the explain block: go to B in the same turn** — do not wait for a typed reply.
+**After the explain block: go to B in the same turn** — do not wait for a typed reply. The block is not a preamble you may summarise away on a later finding: every finding, every time, in full (or Trivial-abbreviated per § No naked AskQuestion), immediately before its card.
 
 ### B — Treat (`AskQuestion` tool call)
 
-**Stop condition:** This turn is incomplete unless you invoke **`AskQuestion`**. Do **not** write the options into the chat body.
+**Stop condition (two parts, both required):** This turn is incomplete unless (1) the § A explain block for **this** finding was emitted in chat in this turn, **and** (2) you then invoke **`AskQuestion`**. Invoking the card without (1) does not satisfy this condition — it violates § No naked AskQuestion. Do **not** write the options into the chat body.
 
 Tool args only (ids/labels for the tool — never paste this list into chat):
 
@@ -202,7 +272,7 @@ Tool args only (ids/labels for the tool — never paste this list into chat):
 | `fix_remaining` | `Fix remaining` — **only when** later findings still exist after this one |
 
 - **`prompt`:** `Finding #<N> — how should we treat this?`
-- Prefer `Fix (Recommended)` when recommendation is Fix now; prefer `Won't fix (Recommended)` only when Disposition + current evidence support it.
+- Prefer `Fix (Recommended)` when recommendation is Fix now; prefer `Won't fix (Recommended)` only when Disposition + current evidence support it. The support lives in the § A block above the card — that block, not the label, is what justifies the recommendation.
 - **Three options** when this is the last finding; **four** when more findings remain. Do not add `Something else` / `Other` (host may supply `Other…`).
 
 | Choice | Next |
@@ -228,7 +298,7 @@ Gate 1 **never** writes a UAP. After `dont_fix`:
    - Yes intent examples: “I will add one unit test covering this pattern”, “waiting for PR 123 to merge then clean up”.
    - Intent may become a **candidate UAP Disposition** at promote time; it does **not** force promotion.
 3. **Optional personal-todo (once per finding):** Only when remediation intent is **yes** **and** personal-todo is installed (user-pack `todo-add.md` **or** plugin `sicon-personal-todo`):
-   - `AskQuestion`: `Create a personal todo for this deferred work?` → `yes` / `no`.
+   - `AskQuestion`: `Create a personal todo for this deferred work?` → `yes` / `no`. Precondition (§ No naked AskQuestion): the Won't-fix reason + remediation intent just recorded are stated in chat immediately before this card.
    - **no** → continue; do not load todo files.
    - **yes** → follow `/todo-add` (or the resolved `todo-add.md`) + FORMAT; create a finding-scoped todo with:
      - **CodeAnt ref:** `PR #<id> / thread <threadId>` (use `—` for thread when pasted-only / unknown)
@@ -241,8 +311,16 @@ Gate 1 **never** writes a UAP. After `dont_fix`:
 ### C — Implement and confirm (Fix only)
 
 1. Apply a **minimal** fix for **this finding only**.
-2. Report in chat: what changed and `git diff` (or scoped diff) for the touched files.
-3. **Same turn:** invoke **`AskQuestion`** (do not list options in chat).
+2. After all edit/check tool calls, emit the **Confirm block** in chat (continuation-gate context per § No naked AskQuestion — do **not** re-emit § A, and do not treat edit-tool cards or `git diff` tool output as a substitute):
+
+   ```markdown
+   **Finding #<N> — Confirm**
+   - **Changed:** `<files>` — <behaviour change in one line>
+   - **Diff:** <stat / key hunks; show the scoped `git diff` or summarise it faithfully>
+   - **Checks:** <build/tests run + result, or “not run — <why>”>
+   ```
+
+3. **Immediately after that block:** invoke **`AskQuestion`** (do not list options in chat). Never go directly from an edit/check tool result to the confirm card.
 
 Tool args only:
 
@@ -252,13 +330,13 @@ Tool args only:
 | `revise` | `Revise` |
 | `revert` | `Revert / won't fix` |
 
-- **`prompt`:** `Finding #<N> changes OK?`
+- **`prompt`:** `Finding #<N> changes OK?` — valid only immediately after the § C Confirm block (continuation gate, § No naked AskQuestion); a confirm card preceded only by edit/check tool activity is naked.
 - **Exactly three options** — no pack-added freeform.
 
 | Choice | Next |
 |--------|------|
 | **accept** | Mark accepted; next finding |
-| **revise** | User guidance → adjust code → show diff → AskQuestion again until leave finding |
+| **revise** | User guidance → adjust code → new Confirm block (what changed since the last diff shown + checks) → AskQuestion again until leave finding |
 | **revert** | Revert this finding's local changes (best effort); then § **Won't fix — reason and optional todo**; next finding |
 | **Other…** (host) | Free-text intent; then Accept / Revise / Revert as appropriate |
 
@@ -280,17 +358,17 @@ If the finding was **Already fixed** on the branch, do not edit; record for ADO 
 1. In chat (short): tally remaining — e.g. `Escape: 4 left — 3 Fix-targets, 1 Invalid (WontFix).`
 2. **`AskQuestion` tool call** (do not list options in chat):
 
-   - **`prompt`:** `Fix remaining without per-finding prompts?`
+   - **`prompt`:** `Fix remaining without per-finding prompts?` — valid only immediately after the step-1 tally in the same turn (§ No naked AskQuestion)
    - Options: `Proceed (Recommended)` \| `Cancel — keep linear`
 
 3. **Cancel:** re-issue treat AskQuestion for the **current** finding (linear). Do not implement.
 4. **Proceed:**
    - Briefly evaluate any later finding not yet explained (verdict + one-line proposal — chat OK, no per-item AskQuestion).
    - Implement all Fix-targets (minimal diffs).
-   - Show aggregate `git diff` / summary.
-   - **`AskQuestion`:** `Batch changes OK?` → `Accept (Recommended)` \| `Revise` \| `Revert batch`
-5. **Accept** → mark all Fix-targets accepted; non-fix rows recorded; go to session rollup.
-6. **Revise** → adjust → re-show diff → AskQuestion again.
+   - Show the aggregate Confirm block (targets implemented, files changed, aggregate diff summary/stat, checks).
+   - **`AskQuestion`:** `Batch changes OK?` → `Accept (Recommended)` \| `Revise` \| `Revert batch` — only immediately after the aggregate Confirm block (targets implemented, files, diff summary/stat, checks; continuation gate, § No naked AskQuestion)
+5. **Accept** → mark all Fix-targets accepted; non-fix rows recorded; if security findings remain, continue to the security loop (next untreated security finding); go to session rollup only when both the suggestion and security loops are done.
+6. **Revise** → adjust → new aggregate Confirm block → AskQuestion again.
 7. **Revert batch** → revert this escape’s changes (best effort); resume linear loop at the current finding (or next undeeded).
 
 Do **not** open with a Phase-1 batch decision table. Escape only after the loop has started (or from chat mid-loop).
@@ -343,7 +421,7 @@ Keep AskQuestion rules: **one card per turn**; do **not** pack-add freeform (hos
 
 `AskQuestion` tool call (do not list options in chat):
 
-- **`prompt`:** `Promote this finding to your user anti-pattern catalog?`
+- **`prompt`:** `Promote this finding to your user anti-pattern catalog?` — valid only immediately after a promote-candidate summary in chat (finding + verdict, generalizable pattern, why promoting is proposed; § No naked AskQuestion)
 - Options (tool args): `yes` — `Yes — promote to UAP (Recommended)` \| `no` — `No`
 
 | Choice | Next |
@@ -356,7 +434,7 @@ Keep AskQuestion rules: **one card per turn**; do **not** pack-add freeform (hos
 
 Primary `AskQuestion` using the applicable action’s `prompt`:
 
-- **`prompt`:** e.g. `Generate a unit test?`
+- **`prompt`:** e.g. `Generate a unit test?` — same promote-candidate summary precondition as Gate A (§ No naked AskQuestion); the saved action `prompt` is the question, not the context
 - Options: `yes` — `Yes (Recommended)` \| `no` — `No`
 
 | Choice | Next |
@@ -371,7 +449,7 @@ Primary `AskQuestion` using the applicable action’s `prompt`:
 
 After learning proceeds, **before** appending UAP (and before persisting any new/updated preference action from **Other…** in this promote). Mention `displayName` / `remoteId` in chat only.
 
-- **`prompt`:** `Scope for this promote?`
+- **`prompt`:** `Scope for this promote?` — the chat immediately before must state the candidate pattern and whether the evidence is repo-specific or cross-repo (that, not the label, justifies `This repo (Recommended)`)
 - Options: `this` — `This repo (Recommended)` \| `all` — `All repos`
 
 | Choice | Scope value | Repo (display) column |
@@ -409,7 +487,7 @@ Then continue to **Gate B**.
 
 After a successful UAP append only:
 
-1. `AskQuestion`: **`prompt`** `Also create a profile Cursor rule for this UAP?` → `yes` — `Yes (Recommended)` \| `no` — `No`.
+1. `AskQuestion`: **`prompt`** `Also create a profile Cursor rule for this UAP?` → `yes` — `Yes (Recommended)` \| `no` — `No`. Precondition: the UAP row just written is summarised in chat immediately before (§ No naked AskQuestion).
 2. **no** → done with promotion.
 3. **yes** → derive **path** globs from the finding’s repo-relative path (e.g. `src/A/B/C.cs`):
 
@@ -419,7 +497,7 @@ After a successful UAP append only:
 | `narrow` | `This file only` | exact relative path → `src/A/B/C.cs` |
 | `widen` | `Widen (grandparent)` | grandparent + `/**` → `src/A/**` |
 
-`AskQuestion` path scope (one card; host **Other…** → custom glob in chat; reject empty). Repo Scope was already chosen above — inherit it.
+`AskQuestion` path scope (one card; host **Other…** → custom glob in chat; reject empty): **`prompt`** `Which glob scope for this rule?` — preceded in chat by the finding path and whether the pattern is file-local or folder-wide. Repo Scope was already chosen above — inherit it.
 
 4. Write or update **only** `%USERPROFILE%\.cursor\rules\codeant-uap-<n>.mdc` (same `<n>` as the UAP id). **Never** under the product repo. **Never** add these files to pack `managed`.
 
@@ -460,9 +538,9 @@ When remediation for a UAP is finished, **clear only the Disposition cell** — 
 ### Finalize gate
 
 1. Emit the rollup table above.
-2. **AskQuestion tool call** (clickable cards) — short prompt only; **do not** list options in chat:
+2. **AskQuestion tool call** (clickable cards) — **do not** list options in chat:
 
-   - **`prompt`:** `Ready to finalize PR #<id>?`
+   - **`prompt`:** `Ready to finalize PR #<id>?` — valid only immediately after the rollup table + diffstat in the same turn (§ No naked AskQuestion); if the rollup was emitted in an earlier turn or anything is still undecided, re-emit the rollup (noting what is outstanding) before this card
    - Options (tool args only): `resolve` (Recommended) \| `reply-only` \| `commit-only` \| `no` — no pack-added freeform
 
 3. On **resolve** / **reply-only** / **commit-only**:
@@ -503,6 +581,16 @@ For `-Status WontFix`, build `-Reply` as `"**Issue:** …`n**WontFix Reason:** �
 | **won't fix** (`dont_fix`) — any verdict | no | yes |
 | **already fixed** | yes | — |
 | **skip** (`defer`) | skip post | — |
+
+**Meta-sourced findings (Nitpicks + security) — disposition model.** These live inside one shared meta thread (`metaThreadId`), so they never get a per-finding reply/`-Resolve`/`-Status WontFix` — that would close the thread under its remaining findings.
+
+| Choice | ADO action on finalize |
+|--------|------------------------|
+| **fix** (accepted + pushed) | **None.** Proof of clearance is the re-review: after push + re-request, first confirm the re-review has finished on the pushed tip — review state `finished_this_sha` for the current HEAD SHA (and, for Quality Gate findings, the re-fetched gate snapshot's `commit` matches that SHA) — and only then does a re-fetch showing the nitpick gone / `securityFindingCount == 0` (gate PASSED) count as proof before the session counts as cleared. A findings/gate snapshot from an earlier SHA does not count. |
+| **won't fix** | **One** summary post per meta thread (not per finding): first build the summary in a variable as bound data — `$summaryBody` lists every won't-fix finding in that thread (location + its reason, everyday language) — without interpolating ADO-derived finding text inside a double-quoted command argument, then post with `Post-CodeAntPrThreadReply.ps1 -PullRequestId <id> -ThreadId <metaThreadId> -ParentCommentId <parent comment of that meta thread> -Reply $summaryBody` (`parentCommentId` in fetch `-Json`: per Nitpick finding, or `qualityGate.parentCommentId`). Add `-Status Closed` **only** when every finding in that meta thread is won't-fix; if any finding in that thread is skipped or awaiting re-review, post without `-Status Closed` so those findings stay visible to later fetches. The summary is also the dismissal record: later fetches exclude the locations it lists (`path ~line`), so won't-fixed findings do not resurface while the thread stays open — list every dismissed location explicitly. |
+| **skip** (`defer`) | No post; the meta thread is left for the finalize meta hygiene below. |
+
+Leftover meta threads themselves are only ever Closed as hygiene (finalize `Clear-CodeAntRetriggerThreads.ps1` clears kicks; meta threads are Closed by the review port's meta clear in clearance, or left for CodeAnt's next review to supersede) — closing a meta thread is never the *proof* a finding was fixed.
 
 **Scope:** `resolve` / `reply-only` / `commit-only` are **CodeAnt Triage only** — not general git verbs.
 
@@ -557,7 +645,7 @@ Explain block → treat AskQuestion → (if Fix) diff report → confirm AskQues
 
 ### Early escape (optional)
 
-Treat **`Fix remaining`** or chat `fix all` → confirm AskQuestion → batch implement → batch accept AskQuestion → rollup.
+Treat **`Fix remaining`** or chat `fix all` → confirm AskQuestion → batch implement → batch accept AskQuestion → security loop if security findings remain, else rollup.
 
 
 (See § After the loop.)

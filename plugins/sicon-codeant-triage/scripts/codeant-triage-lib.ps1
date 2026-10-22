@@ -510,11 +510,14 @@ function Test-IsCodeAntMetaThread {
     if (-not (Test-PsObjectHasProperty -Object $Thread -Name 'comments')) { return $false }
 
     # Status-family allowlist: Code Ant author + first-heading match (not a human phrase mention).
-    # Live posts often prefix emoji / shortcodes (e.g. "## 🤖 CodeAnt AI — Review Status",
-    # "# :checkered_flag: CodeAnt Quality Gate Results") — keep the allowlist tolerant of that.
+    # Live posts often prefix emoji / shortcodes (e.g. "## <robot> CodeAnt AI - Review Status",
+    # "# :checkered_flag: CodeAnt Quality Gate Results") - keep the allowlist tolerant of that.
+    # Patterns must stay pure ASCII: this file is UTF-8 without BOM and Windows PowerShell 5.1
+    # decodes it as ANSI, so any literal non-ASCII char (e.g. an em dash) loads as mojibake and
+    # never matches live content. Use regex escapes such as \u2014 instead.
     $headerPatterns = @(
-        '(?m)^##\s+Ticket Scope Review\b'
-        '(?m)^##\s+(?:\S+\s+)?CodeAnt AI\s*[-—]\s*Review Status\b'
+        '(?m)^##\s+(?:\S+\s+)?Ticket Scope Review\b'
+        '(?m)^##\s+(?:\S+\s+)?CodeAnt AI\s*[-\u2014]\s*Review Status\b'
         '(?m)^#{1,2}\s+(?::[\w+]+:\s*)?CodeAnt Quality Gate Results\b'
         '(?m)^##\s+CodeAnt Nitpicks\b'
         '(?m)^(?:##\s+|\*\*)?CodeAnt PR Risk\b'
@@ -614,10 +617,536 @@ function Get-CodeAntFileFindingsFromThreads {
                 ThreadId        = $thread.id
                 ParentCommentId = $comment.id
                 ThreadStatus    = $status
+                Source          = 'file'
             })
     }
 
     return $findings
+}
+
+# --- Quality Gate + Nitpicks meta-comment parsing ---------------------------------
+# CodeAnt posts two finding-bearing payloads as PR-level meta comments instead of
+# file threads, so Get-CodeAntFileFindingsFromThreads cannot see them:
+#   1. "CodeAnt Quality Gate Results" - per-gate table plus, inside <details>, a
+#      generic File/Line detail table per failed gate (Secrets on PR 31460).
+#   2. "CodeAnt Nitpicks" - numbered suggestions whose file/line live only in a
+#      markdown link (`path:line`) on the line under each #### heading.
+# Both are normalised here. Nitpicks become comment-equivalent findings (same
+# Path/Line/Comment shape as file findings, Source = 'nitpick'). Quality Gate
+# detail rows become *security findings* (source/gate/path/line/type/confidence/
+# status/resultsUrl/metaThreadId) kept separate from file findings: they have no
+# ADO thread of their own, so they must never be folded into activeFindingCount
+# or completed per finding (see the disposition model in codeant-review-state.ps1).
+# This file must stay pure ASCII (PS 5.1 decodes UTF-8-no-BOM as ANSI); all
+# non-ASCII match characters below use regex \uXXXX escapes or [char] casts.
+
+function ConvertTo-CodeAntGateStatus {
+    param([string]$Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) { return 'unknown' }
+    $clean = ($Text -replace ':[a-z0-9_+-]+:', ' ' -replace '\*', ' ').Trim().ToLowerInvariant()
+    if ($clean -match 'fail') { return 'failed' }
+    if ($clean -match 'pass') { return 'passed' }
+    return 'unknown'
+}
+
+function Get-CodeAntMetaComment {
+    param(
+        $Thread,
+        [Parameter(Mandatory = $true)]
+        [string]$HeaderPattern
+    )
+
+    foreach ($comment in (Get-AdoThreadComments -Thread $Thread)) {
+        if ((Get-AdoCommentAuthorDisplayName -Comment $comment) -ne $script:CodeAntAuthorName) { continue }
+        $body = Get-AdoCommentContentText -Comment $comment
+        if ([string]::IsNullOrWhiteSpace($body)) { continue }
+        if ($body -match $HeaderPattern) { return $comment }
+    }
+    return $null
+}
+
+function Get-CodeAntThreadStatusText {
+    param($Thread)
+
+    $status = 'active'
+    if ($Thread.PSObject.Properties.Name -contains 'status' -and $null -ne $Thread.status) {
+        $status = [string]$Thread.status
+    }
+    return $status
+}
+
+function ConvertFrom-CodeAntSummaryGateName {
+    param([string]$SummaryHtml)
+
+    if ([string]::IsNullOrWhiteSpace($SummaryHtml)) { return '' }
+    $text = ($SummaryHtml -replace '<[^>]+>', ' ').Trim()
+    $text = ($text -replace ':[a-z0-9_+-]+:', ' ').Trim()
+    $text = ($text -replace '^\W+', '').Trim()
+    $parts = @($text -split "\u2014|\u2013|\s-\s")
+    if ($parts.Count -eq 0) { return '' }
+    return ([string]$parts[0]).Trim().TrimEnd(':').Trim()
+}
+
+function Get-CodeAntQualityGateFromContent {
+    <#
+    .SYNOPSIS
+      Parse one Quality Gate results comment body into gate rows + detail rows.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Content,
+
+        [int]$MetaThreadId = 0
+    )
+
+    $overallText = ''
+    $commit = ''
+    $scanTime = ''
+    $resultsUrl = ''
+    $gates = New-Object 'System.Collections.Generic.List[object]'
+    $detailRows = New-Object 'System.Collections.Generic.List[object]'
+    $currentGate = ''
+    $mode = ''
+    $col = @{}
+
+    foreach ($line in @($Content -split '\r?\n')) {
+        if ($line -match 'Overall Status:\s*\**\s*([A-Za-z]+)') { $overallText = $Matches[1] }
+        if ($line -match '^\s*\*\*Commit:\*\*\s*`?([^`\s]+)`?') { $commit = $Matches[1] }
+        if ($line -match '^\s*\*\*Scan Time:\*\*\s*(.+?)\s*$') { $scanTime = $Matches[1] }
+        if ([string]::IsNullOrWhiteSpace($resultsUrl) -and $line -match '(https://app\.codeant\.ai/quality-gates/results\?[^)\s]+)') {
+            $resultsUrl = $Matches[1]
+        }
+        if ($line -match '<summary>(.*?)</summary>') {
+            $gateName = ConvertFrom-CodeAntSummaryGateName -SummaryHtml $Matches[1]
+            if (-not [string]::IsNullOrWhiteSpace($gateName)) { $currentGate = $gateName }
+            $mode = ''
+            continue
+        }
+        if ($line -notmatch '^\s*\|') {
+            if ($line -notmatch '^\s*$') { $mode = '' }
+            continue
+        }
+        if ($line -match '^\|\s*-+') { continue }
+
+        $cells = @(Split-MarkdownTableRowCells -Line $line)
+        if ($cells.Count -eq 0) { continue }
+        $headers = @($cells | ForEach-Object { ([string]$_ -replace '\*', '').Trim().ToLowerInvariant() })
+
+        if ($headers -contains 'quality gate' -and $headers -contains 'status') {
+            $mode = 'gates'
+            $col = @{
+                Name    = [array]::IndexOf($headers, 'quality gate')
+                Status  = [array]::IndexOf($headers, 'status')
+                Details = [array]::IndexOf($headers, 'details')
+            }
+            continue
+        }
+        if ($headers -contains 'file' -and $headers -contains 'line') {
+            $mode = 'detail'
+            $typeIdx = [array]::IndexOf($headers, 'type')
+            if ($typeIdx -lt 0) { $typeIdx = [array]::IndexOf($headers, 'issue') }
+            if ($typeIdx -lt 0) { $typeIdx = [array]::IndexOf($headers, 'rule') }
+            if ($typeIdx -lt 0) { $typeIdx = [array]::IndexOf($headers, 'message') }
+            $col = @{
+                File       = [array]::IndexOf($headers, 'file')
+                Line       = [array]::IndexOf($headers, 'line')
+                Type       = $typeIdx
+                Confidence = [array]::IndexOf($headers, 'confidence')
+            }
+            continue
+        }
+
+        if ($mode -eq 'gates' -and $cells.Count -gt $col.Status) {
+            $gateStatus = ConvertTo-CodeAntGateStatus -Text ([string]$cells[$col.Status])
+            $details = ''
+            if ($col.Details -ge 0 -and $cells.Count -gt $col.Details) { $details = ([string]$cells[$col.Details]).Trim() }
+            [void]$gates.Add([pscustomobject]@{
+                    name         = ([string]$cells[$col.Name] -replace '\*', '').Trim()
+                    status       = $gateStatus
+                    details      = $details
+                    findingCount = 0
+                })
+            continue
+        }
+        if ($mode -eq 'detail' -and $cells.Count -gt $col.File -and $cells.Count -gt $col.Line) {
+            $file = ([string]$cells[$col.File] -replace '`', '' -replace '\*', '').Trim()
+            $lineText = ([string]$cells[$col.Line]).Trim()
+            $lineNo = $null
+            if ($lineText -match '(\d+)') { $lineNo = [int]$Matches[1] }
+            $type = ''
+            if ($col.Type -ge 0 -and $cells.Count -gt $col.Type) { $type = ([string]$cells[$col.Type]).Trim() }
+            $confidence = ''
+            if ($col.Confidence -ge 0 -and $cells.Count -gt $col.Confidence) { $confidence = ([string]$cells[$col.Confidence]).Trim() }
+            if (-not [string]::IsNullOrWhiteSpace($file)) {
+                [void]$detailRows.Add([pscustomobject]@{
+                        gate       = $currentGate
+                        path       = $file
+                        line       = $lineNo
+                        type       = $type
+                        confidence = $confidence
+                    })
+            }
+            continue
+        }
+    }
+
+    $status = ConvertTo-CodeAntGateStatus -Text $overallText
+    if ($status -eq 'unknown') {
+        $failedGates = @($gates | Where-Object { $_.status -eq 'failed' })
+        if ($failedGates.Count -gt 0) { $status = 'failed' }
+        elseif ($gates.Count -gt 0) { $status = 'passed' }
+    }
+
+    foreach ($gate in $gates) {
+        $gate.findingCount = @($detailRows | Where-Object { $_.gate -ieq $gate.name }).Count
+    }
+
+    $security = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($row in $detailRows) {
+        $gateName = [string]$row.gate
+        $gateRow = @($gates | Where-Object { $_.name -ieq $gateName }) | Select-Object -First 1
+        if ($gateRow -and $gateRow.status -ne 'failed') { continue }
+        if ([string]::IsNullOrWhiteSpace($gateName)) { $gateName = 'Quality Gate' }
+        $type = [string]$row.type
+        if ([string]::IsNullOrWhiteSpace($type)) { $type = "$gateName finding" }
+        [void]$security.Add([pscustomobject]@{
+                source       = 'qualityGate'
+                gate         = $gateName
+                path         = [string]$row.path
+                line         = $row.line
+                type         = $type
+                confidence   = [string]$row.confidence
+                status       = 'open'
+                resultsUrl   = $resultsUrl
+                metaThreadId = $MetaThreadId
+            })
+    }
+    # Never drop a failed gate: a failed gate with no parseable detail row (web-only
+    # detail behind the results URL, a new table shape, ...) still yields one
+    # gate-level finding carrying resultsUrl so a human/agent can open the detail.
+    foreach ($gate in @($gates | Where-Object { $_.status -eq 'failed' })) {
+        if (@($security | Where-Object { $_.gate -ieq $gate.name }).Count -gt 0) { continue }
+        [void]$security.Add([pscustomobject]@{
+                source       = 'qualityGate'
+                gate         = [string]$gate.name
+                path         = ''
+                line         = $null
+                type         = 'Quality gate failed'
+                confidence   = ''
+                status       = 'open'
+                resultsUrl   = $resultsUrl
+                metaThreadId = $MetaThreadId
+            })
+    }
+    if ($status -eq 'failed' -and $security.Count -eq 0) {
+        [void]$security.Add([pscustomobject]@{
+                source       = 'qualityGate'
+                gate         = 'Quality Gate'
+                path         = ''
+                line         = $null
+                type         = 'Quality gate failed'
+                confidence   = ''
+                status       = 'open'
+                resultsUrl   = $resultsUrl
+                metaThreadId = $MetaThreadId
+            })
+    }
+
+    return [pscustomobject]@{
+        status            = $status
+        commit            = $commit
+        scanTime          = $scanTime
+        resultsUrl        = $resultsUrl
+        metaThreadId      = $MetaThreadId
+        gates             = @($gates.ToArray())
+        securityFindings  = @($security.ToArray())
+        securityFindingCount = $security.Count
+    }
+}
+
+function Get-CodeAntQualityGateFromThreads {
+    <#
+    .SYNOPSIS
+      Latest active Quality Gate meta thread on a PR, parsed; $null when absent.
+    .DESCRIPTION
+      CodeAnt threads often carry no ADO status property at all - a missing status
+      counts as active (Test-IsActiveAdoThread). Non-active (e.g. Closed after a
+      wont-fix meta summary) gate threads no longer contribute security findings.
+    #>
+    param($Threads)
+
+    $best = $null
+    $bestId = -1
+    foreach ($thread in @(Get-CodeAntReviewThreadListSafe -Threads $Threads)) {
+        if ($null -eq $thread) { continue }
+        if (-not (Test-IsActiveAdoThread -Status (Get-CodeAntThreadStatusText -Thread $thread))) { continue }
+        $comment = Get-CodeAntMetaComment -Thread $thread -HeaderPattern '(?m)^#{1,2}\s+(?::[\w+]+:\s*)?CodeAnt Quality Gate Results\b'
+        if ($null -eq $comment) { continue }
+        $threadId = 0
+        $rawId = Get-PsObjectPropertyValue -Object $thread -Name 'id' -Default 0
+        if ("$rawId" -match '^\d+$') { $threadId = [int]$rawId }
+        if ($threadId -lt $bestId) { continue }
+        $bestId = $threadId
+        $best = Get-CodeAntQualityGateFromContent -Content (Get-AdoCommentContentText -Comment $comment) -MetaThreadId $threadId
+        $best | Add-Member -NotePropertyName parentCommentId -NotePropertyValue $comment.id -Force
+        $dismissedKeys = Get-CodeAntDismissedMetaFindingKeys -Thread $thread
+        if ($dismissedKeys.Count -gt 0) {
+            $kept = @($best.securityFindings | Where-Object {
+                    $lineText = ''
+                    if ($null -ne $_.line) { $lineText = [string]$_.line }
+                    -not $dismissedKeys.ContainsKey((ConvertTo-CodeAntMetaFindingKey -Path ([string]$_.path) -Line $lineText))
+                })
+            $best.securityFindings = $kept
+            $best.securityFindingCount = $kept.Count
+        }
+    }
+    return $best
+}
+
+function Get-CodeAntReviewThreadListSafe {
+    # Get-CodeAntReviewThreadList lives in codeant-review-state.ps1 (dot-sourced
+    # after this file); resolve lazily so this parser also works if only the
+    # helpers above it have been loaded, without re-implementing unwrapping.
+    param($Threads)
+
+    if (Get-Command -Name Get-CodeAntReviewThreadList -ErrorAction SilentlyContinue) {
+        return @(Get-CodeAntReviewThreadList -Threads $Threads)
+    }
+    if ($null -eq $Threads) { return @() }
+    return @($Threads)
+}
+
+function Get-CodeAntSecurityFindingsFromThreads {
+    <#
+    .SYNOPSIS
+      Security findings normalised from the active Quality Gate meta thread.
+    #>
+    param($Threads)
+
+    $gate = Get-CodeAntQualityGateFromThreads -Threads $Threads
+    if ($null -eq $gate) { return @() }
+    return @($gate.securityFindings)
+}
+
+function ConvertFrom-CodeAntNitpickComment {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Content,
+
+        [int]$MetaThreadId = 0,
+        $ParentCommentId = $null,
+        [string]$ThreadStatus = 'active'
+    )
+
+    $findings = New-Object 'System.Collections.Generic.List[object]'
+    $title = ''
+    $index = 0
+    foreach ($line in @($Content -split '\r?\n')) {
+        if ($line -match '^\s*####\s+(\d+)\.\s+(.+?)\s*$') {
+            $index = [int]$Matches[1]
+            $title = ($Matches[2] -replace '&#x27;', "'" -replace '&quot;', '"' -replace '&amp;', '&').Trim()
+            continue
+        }
+        if ([string]::IsNullOrWhiteSpace($title)) { continue }
+        if ($line -notmatch '\[(`?)([^`\]]+)\1\]\([^)]+\)') { continue }
+        $linkText = ([string]$Matches[2]).Trim()
+        if ($linkText -notmatch '^(.+):(\d+)$') { continue }
+
+        $rawPath = ([string]$Matches[1]).Trim().TrimStart('/')
+        $category = ''
+        $prefix = $line.Substring(0, $line.IndexOf('[')).Trim()
+        if (-not [string]::IsNullOrWhiteSpace($prefix)) {
+            $category = ($prefix -replace "\u00B7\s*$", '').Trim().TrimEnd('-').Trim()
+        }
+        [void]$findings.Add([pscustomobject]@{
+                Id              = "$MetaThreadId-$index"
+                Number          = $findings.Count + 1
+                Path            = "/$rawPath"
+                Line            = [string]$Matches[2]
+                Comment         = $title
+                Category        = $category
+                ThreadId        = $MetaThreadId
+                ParentCommentId = $ParentCommentId
+                ThreadStatus    = $ThreadStatus
+                Source          = 'nitpick'
+                MetaThreadId    = $MetaThreadId
+            })
+        $title = ''
+    }
+    return @($findings.ToArray())
+}
+
+function ConvertTo-CodeAntMetaFindingKey {
+    param(
+        [string]$Path,
+        [string]$Line
+    )
+
+    $normalised = ([string]$Path).Trim().TrimStart('/').Replace('\', '/').ToLowerInvariant()
+    return "$normalised|$(([string]$Line).Trim())"
+}
+
+function Get-CodeAntDismissedMetaFindingKeys {
+    <#
+    .SYNOPSIS
+      Location keys already dismissed inside a shared meta thread.
+    .DESCRIPTION
+      A won't-fix summary for meta-sourced findings is posted as a non-CodeAnt
+      reply carrying **WontFix Reason:** and listing each dismissed finding's
+      location (`path ~line` or a `path:line` link). When the shared meta
+      thread stays active (a sibling finding was skipped or awaits re-review),
+      the original CodeAnt comment would otherwise be reparsed next session
+      and the dismissed findings would resurface as active. Only non-CodeAnt
+      comments with the WontFix Reason marker count as dismissal evidence.
+    #>
+    param($Thread)
+
+    $keys = @{}
+    if ($null -eq $Thread) { return $keys }
+    foreach ($comment in (Get-AdoThreadComments -Thread $Thread)) {
+        if ((Get-AdoCommentAuthorDisplayName -Comment $comment) -eq $script:CodeAntAuthorName) { continue }
+        $body = Get-AdoCommentContentText -Comment $comment
+        if ([string]::IsNullOrWhiteSpace($body)) { continue }
+        if ($body -notmatch '(?i)\*\*WontFix Reason:\*\*') { continue }
+        foreach ($m in [regex]::Matches($body, '\[(`?)(?<path>[^`\]\s]+):(?<line>\d+)\1\]\(')) {
+            $keys[(ConvertTo-CodeAntMetaFindingKey -Path $m.Groups['path'].Value -Line $m.Groups['line'].Value)] = $true
+        }
+        foreach ($m in [regex]::Matches($body, '(?<path>[A-Za-z0-9_.\-/]+\.[A-Za-z0-9]+)\s*~(?<line>\d+)')) {
+            $keys[(ConvertTo-CodeAntMetaFindingKey -Path $m.Groups['path'].Value -Line $m.Groups['line'].Value)] = $true
+        }
+    }
+    return $keys
+}
+
+function Get-CodeAntNitpickFindingsFromThreads {
+    <#
+    .SYNOPSIS
+      Comment-equivalent findings embedded in active CodeAnt Nitpicks meta threads.
+    #>
+    param(
+        $Threads,
+        [switch]$ActiveOnly
+    )
+
+    $findings = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($thread in @(Get-CodeAntReviewThreadListSafe -Threads $Threads)) {
+        if ($null -eq $thread) { continue }
+        $status = Get-CodeAntThreadStatusText -Thread $thread
+        if ($ActiveOnly -and -not (Test-IsActiveAdoThread -Status $status)) { continue }
+        $threadContext = Get-PsObjectPropertyValue -Object $thread -Name 'threadContext' -Default $null
+        $filePath = ''
+        if ($null -ne $threadContext) {
+            $filePath = [string](Get-PsObjectPropertyValue -Object $threadContext -Name 'filePath' -Default '')
+        }
+        if (-not [string]::IsNullOrWhiteSpace($filePath)) { continue }
+        $comment = Get-CodeAntMetaComment -Thread $thread -HeaderPattern '(?m)^##\s+CodeAnt Nitpicks\b'
+        if ($null -eq $comment) { continue }
+        $threadId = 0
+        $rawId = Get-PsObjectPropertyValue -Object $thread -Name 'id' -Default 0
+        if ("$rawId" -match '^\d+$') { $threadId = [int]$rawId }
+        $dismissedKeys = Get-CodeAntDismissedMetaFindingKeys -Thread $thread
+        foreach ($finding in @(ConvertFrom-CodeAntNitpickComment -Content (Get-AdoCommentContentText -Comment $comment) `
+                -MetaThreadId $threadId -ParentCommentId $comment.id -ThreadStatus $status)) {
+            if ($dismissedKeys.ContainsKey((ConvertTo-CodeAntMetaFindingKey -Path ([string]$finding.Path) -Line ([string]$finding.Line)))) { continue }
+            $finding.Number = $findings.Count + 1
+            [void]$findings.Add($finding)
+        }
+    }
+    return @($findings.ToArray())
+}
+
+function Test-IsCodeAntMetaSourcedFinding {
+    <#
+    .SYNOPSIS
+      True for findings that live inside a shared meta thread (qualityGate /
+      nitpick) rather than owning an ADO file thread.
+    #>
+    param($Finding)
+
+    if ($null -eq $Finding) { return $false }
+    if (Test-PsObjectHasProperty -Object $Finding -Name 'source') {
+        if ([string]$Finding.source -eq 'qualityGate') { return $true }
+    }
+    if (Test-PsObjectHasProperty -Object $Finding -Name 'Source') {
+        $source = [string]$Finding.Source
+        if ($source -eq 'nitpick' -or $source -eq 'qualityGate') { return $true }
+    }
+    if (Test-PsObjectHasProperty -Object $Finding -Name 'metaThreadId') { return $true }
+    if (Test-PsObjectHasProperty -Object $Finding -Name 'MetaThreadId') { return $true }
+    return $false
+}
+
+function Get-CodeAntFindingScaffold {
+    <#
+    .SYNOPSIS
+      Emit the per-finding explain-block scaffold the triage loop completes.
+    .DESCRIPTION
+      Deterministic starting point for the one-turn Treat gate: every slot
+      except Verdict / Proposed change / Recommendation (and the code Context)
+      is pre-filled from the finding, so the agent completes lines instead of
+      remembering to construct a block before its AskQuestion card. Emitting
+      a scaffold with <complete: ...> slots left in it is not a valid block.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        $Finding,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Heading
+    )
+
+    $path = [string](Get-PsObjectPropertyValue -Object $Finding -Name 'Path' -Default '')
+    if ([string]::IsNullOrWhiteSpace($path)) { $path = [string](Get-PsObjectPropertyValue -Object $Finding -Name 'path' -Default '') }
+    $lineValue = Get-PsObjectPropertyValue -Object $Finding -Name 'Line' -Default $null
+    if ($null -eq $lineValue) { $lineValue = Get-PsObjectPropertyValue -Object $Finding -Name 'line' -Default $null }
+    $line = ''
+    if ($null -ne $lineValue) { $line = [string]$lineValue }
+
+    $said = ([string](Get-PsObjectPropertyValue -Object $Finding -Name 'Comment' -Default '')).Trim()
+    if ([string]::IsNullOrWhiteSpace($said)) {
+        $gate = [string](Get-PsObjectPropertyValue -Object $Finding -Name 'gate' -Default '')
+        if ([string]::IsNullOrWhiteSpace($gate)) { $gate = [string](Get-PsObjectPropertyValue -Object $Finding -Name 'Gate' -Default '') }
+        if ([string]::IsNullOrWhiteSpace($gate)) { $gate = 'Quality Gate' }
+        $type = [string](Get-PsObjectPropertyValue -Object $Finding -Name 'type' -Default '')
+        if ([string]::IsNullOrWhiteSpace($type)) { $type = [string](Get-PsObjectPropertyValue -Object $Finding -Name 'Type' -Default '') }
+        $confidence = [string](Get-PsObjectPropertyValue -Object $Finding -Name 'confidence' -Default '')
+        if ([string]::IsNullOrWhiteSpace($confidence)) { $confidence = [string](Get-PsObjectPropertyValue -Object $Finding -Name 'Confidence' -Default '') }
+        $said = "$gate quality gate reported $type"
+        if (-not [string]::IsNullOrWhiteSpace($line)) { $said += " at line $line" }
+        if (-not [string]::IsNullOrWhiteSpace($confidence)) { $said += " ($confidence confidence)" }
+        $said += '.'
+    }
+
+    $location = ''
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        $location = '(location not posted - locate from the gate/type context in the PR diff; do not invent a location)'
+    }
+    else {
+        $location = '`' + $path.Trim() + '`'
+        if (-not [string]::IsNullOrWhiteSpace($line)) { $location += " ~$line" }
+    }
+
+    # Blocked sections: label on its own line, body beneath, blank line between
+    # sections. Inline "**Label:** ..." lines collapse into one wall-of-text
+    # paragraph in chat rendering - never emit that shape.
+    $sections = @(
+        @{ Label = 'Header'; Body = "$Heading - $location" }
+        @{ Label = 'CodeAnt said'; Body = $said }
+        @{ Label = 'Context'; Body = '<complete: relevant code and/or branch diff at this location, citing lines>' }
+        @{ Label = 'Rule cross-check'; Body = '<complete: CAP/AP row + scoped UAP/profile/open-repo rule, or why none applies>' }
+        @{ Label = 'Verdict'; Body = '<complete: Already fixed | Valid | Partial | Invalid | Needs verification - with why>' }
+        @{ Label = 'Proposed change'; Body = '<complete: concrete files + behaviour if Fix is chosen; do not apply yet>' }
+        @{ Label = 'Recommendation'; Body = "<complete: Fix now | Won't fix | Skip - one-line rationale>" }
+    )
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    [void]$lines.Add("### $Heading - scaffold (complete every <complete: ...> slot, emit the completed block in chat, then AskQuestion in the same turn)")
+    foreach ($section in $sections) {
+        [void]$lines.Add('')
+        [void]$lines.Add("**$($section.Label)**")
+        [void]$lines.Add([string]$section.Body)
+    }
+    return ($lines -join [Environment]::NewLine)
 }
 
 function Get-CodeAntFindingCounts {
@@ -693,7 +1222,7 @@ function Test-ReviewerProperty {
     return $null -ne $Object -and ($Object.PSObject.Properties.Name -contains $Name)
 }
 
-# StrictMode: missing note property ≠ $null — must probe before read.
+# StrictMode: missing note property != $null - must probe before read.
 function Test-PsObjectHasProperty {
     param($Object, [string]$Name)
     return $null -ne $Object -and ($Object.PSObject.Properties.Name -contains $Name)
@@ -916,7 +1445,7 @@ function Split-MarkdownTableRowCells {
 function Get-CodeAntUserAntiPatternRows {
     <#
     .SYNOPSIS
-      Parse UAP rows from anti-patterns.user.md. Legacy 7-column rows ⇒ blank Disposition.
+      Parse UAP rows from anti-patterns.user.md. Legacy 7-column rows => blank Disposition.
     #>
     param(
         [Parameter(Mandatory = $true)]

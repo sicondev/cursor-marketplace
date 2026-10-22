@@ -102,7 +102,15 @@ function ConvertFrom-CodeAntReviewStatusDateText {
     $trimmed = $Text.Trim()
     $culture = [Globalization.CultureInfo]::GetCultureInfo('en-US')
 
-    foreach ($format in @('MMM d, yyyy · HH:mm', 'MMM dd, yyyy · HH:mm', 'MMM d, yyyy · H:mm', 'MMM dd, yyyy · H:mm')) {
+    # Live timestamps separate date and time with a middle dot (U+00B7), built
+    # here via [char] so this file stays pure ASCII: Windows PowerShell 5.1
+    # decodes UTF-8-no-BOM source as ANSI, so a literal dot in the format
+    # strings becomes mojibake and never matches properly decoded ADO text -
+    # the row date then silently falls back to the comment's publish date.
+    $trimmed = $trimmed.Replace([string][char]0xC2, '').Replace([string][char]0xB7, ' ')
+    $trimmed = ($trimmed -replace '\s+', ' ').Trim()
+
+    foreach ($format in @('MMM d, yyyy HH:mm', 'MMM dd, yyyy HH:mm', 'MMM d, yyyy H:mm', 'MMM dd, yyyy H:mm')) {
         $combined = [datetime]::MinValue
         if ([datetime]::TryParseExact(
                 $trimmed,
@@ -619,7 +627,120 @@ function Get-CodeAntReviewState {
     return New-CodeAntReviewStateObject -State 'none' -TipSha $Sha
 }
 
+function ConvertTo-CodeAntCanonicalSecurityFinding {
+    <#
+    .SYNOPSIS
+      Project one raw Quality Gate security row (source/gate/path/line/type/...)
+      into the canonical finding shape (Id/Number/Path/Line/Comment + Source).
+    .DESCRIPTION
+      This is the single normalisation point for security findings. The
+      synthesised Comment carries gate, type, line and confidence (CodeAnt's
+      own prompt leads with the line; clearance fingerprints are Path + first
+      Comment line, so the line must be in the Comment to keep two same-type
+      secrets in one file distinct). ThreadId/ParentCommentId stay null: a
+      security row owns no ADO thread (see Complete-CodeAntReviewMetaFindings).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        $SecurityFinding,
+
+        [Parameter(Mandatory = $true)]
+        [int]$Index
+    )
+
+    $gate = [string]$SecurityFinding.gate
+    if ([string]::IsNullOrWhiteSpace($gate)) { $gate = 'Quality Gate' }
+    $type = [string]$SecurityFinding.type
+    $confidence = [string]$SecurityFinding.confidence
+    $rawPath = ([string]$SecurityFinding.path).Trim()
+    $lineText = ''
+    if ($null -ne $SecurityFinding.line) { $lineText = [string]$SecurityFinding.line }
+
+    if ([string]::IsNullOrWhiteSpace($rawPath)) {
+        $comment = "$gate quality gate failed; no file/line detail was posted in ADO."
+        $path = ''
+    }
+    else {
+        $what = $type
+        if ([string]::IsNullOrWhiteSpace($what) -or $what -eq 'Quality gate failed') { $what = 'a security issue' }
+        $comment = "$gate quality gate reported $what"
+        if (-not [string]::IsNullOrWhiteSpace($lineText)) { $comment += " at line $lineText" }
+        if (-not [string]::IsNullOrWhiteSpace($confidence)) { $comment += " ($confidence confidence)" }
+        $comment += '.'
+        $path = '/' + $rawPath.TrimStart('/')
+    }
+
+    return [pscustomobject]@{
+        Id              = "qualitygate-$($SecurityFinding.metaThreadId)-$Index"
+        Number          = $Index
+        Path            = $path
+        Line            = $lineText
+        Comment         = $comment
+        ThreadId        = $null
+        ParentCommentId = $null
+        ThreadStatus    = 'active'
+        Source          = 'qualityGate'
+        Gate            = $gate
+        Type            = $type
+        Confidence      = $confidence
+        Status          = [string]$SecurityFinding.status
+        ResultsUrl      = [string]$SecurityFinding.resultsUrl
+        MetaThreadId    = $SecurityFinding.metaThreadId
+    }
+}
+
 function Get-CodeAntReviewFindings {
+    <#
+    .SYNOPSIS
+      All active findings in one canonical list: file threads, Nitpicks, security.
+    .DESCRIPTION
+      One consolidated port for every consumer. File findings keep their ADO
+      thread ids; Nitpicks (Source = 'nitpick') and Quality Gate security rows
+      (Source = 'qualityGate') are normalised into the same Id/Number/Path/
+      Line/Comment shape, renumbered as one list, and distinguished only by
+      Source (+ MetaThreadId). Consumers that count findings (quiet, act)
+      therefore need no separate security count. Completion still branches on
+      Source - see Complete-CodeAntReviewMetaFindings. Pass -FileOnly for the
+      legacy file-threads-only list.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        $Threads = $null,
+        [string]$WorkspaceRoot = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = '',
+        [switch]$FileOnly
+    )
+
+    $threadList = Get-CodeAntReviewThreadsOrFetch -PullRequestId $PullRequestId -Threads $Threads `
+        -WorkspaceRoot $WorkspaceRoot -Collection $Collection -Project $Project `
+        -Repository $Repository -ServerUrl $ServerUrl
+    $findings = @(Get-CodeAntFileFindingsFromThreads -Threads $threadList -ActiveOnly)
+    if (-not $FileOnly) {
+        $findings = @($findings) + @(Get-CodeAntNitpickFindingsFromThreads -Threads $threadList -ActiveOnly)
+        $securityIndex = 0
+        foreach ($sec in @(Get-CodeAntSecurityFindingsFromThreads -Threads $threadList)) {
+            $securityIndex++
+            $findings = @($findings) + @(ConvertTo-CodeAntCanonicalSecurityFinding -SecurityFinding $sec -Index $securityIndex)
+        }
+        $number = 0
+        foreach ($finding in $findings) {
+            $number++
+            $finding.Number = $number
+        }
+    }
+    return @($findings)
+}
+
+function Get-CodeAntReviewQualityGate {
+    <#
+    .SYNOPSIS
+      Parsed Quality Gate meta thread (status/gates/resultsUrl), or $null.
+    #>
     param(
         [Parameter(Mandatory = $true)]
         [int]$PullRequestId,
@@ -635,7 +756,44 @@ function Get-CodeAntReviewFindings {
     $threadList = Get-CodeAntReviewThreadsOrFetch -PullRequestId $PullRequestId -Threads $Threads `
         -WorkspaceRoot $WorkspaceRoot -Collection $Collection -Project $Project `
         -Repository $Repository -ServerUrl $ServerUrl
-    return @(Get-CodeAntFileFindingsFromThreads -Threads $threadList -ActiveOnly)
+    return Get-CodeAntQualityGateFromThreads -Threads $threadList
+}
+
+function Get-CodeAntReviewSecurityFindings {
+    <#
+    .SYNOPSIS
+      Quality Gate security findings (separate from comment findings; never
+      folded into a comment-finding count). Empty when the gate passes/absent.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        $Threads = $null,
+        [string]$WorkspaceRoot = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $threadList = Get-CodeAntReviewThreadsOrFetch -PullRequestId $PullRequestId -Threads $Threads `
+        -WorkspaceRoot $WorkspaceRoot -Collection $Collection -Project $Project `
+        -Repository $Repository -ServerUrl $ServerUrl
+    return @(Get-CodeAntSecurityFindingsFromThreads -Threads $threadList)
+}
+
+function Get-CodeAntMetaThreadIdFromFinding {
+    param($Finding)
+
+    foreach ($name in @('metaThreadId', 'MetaThreadId', 'ThreadId', 'Id')) {
+        if (Test-PsObjectHasProperty -Object $Finding -Name $name) {
+            $value = $Finding.$name
+            if ("$value" -match '^\d+$') { return [int]$value }
+            if ("$value" -match '^(\d+)-\d+$') { return [int]$Matches[1] }
+        }
+    }
+    return $null
 }
 
 function Request-CodeAntReview {
@@ -678,6 +836,10 @@ function Complete-CodeAntReviewFinding {
         [string]$Repository = '',
         [string]$ServerUrl = ''
     )
+
+    if (Test-IsCodeAntMetaSourcedFinding -Finding $Finding) {
+        throw 'Meta-sourced findings (Quality Gate security / Nitpicks) have no per-finding ADO thread to complete. Use Complete-CodeAntReviewMetaFindings: fixed is proven by a re-review clearing the gate/meta comment; dismissed needs one summary reply on the shared meta thread.'
+    }
 
     $threadId = $null
     if (Test-PsObjectHasProperty -Object $Finding -Name 'ThreadId') {
@@ -737,6 +899,125 @@ function Complete-CodeAntReviewFinding {
     }
 }
 
+function Complete-CodeAntReviewMetaFindings {
+    <#
+    .SYNOPSIS
+      Complete meta-sourced findings (Quality Gate security rows / Nitpicks) as a group.
+    .DESCRIPTION
+      Disposition model for findings that live inside a shared meta thread:
+
+      - fixed: posts nothing and closes nothing. There is no per-finding ADO
+        thread to Resolve, and closing the shared meta thread would hide the
+        evidence for its other findings. Proof of clearance is a re-review:
+        re-fetch shows the gate passed (security findings == 0) or the nitpick
+        gone. Returns Status = 'AwaitingReReview'.
+      - dismissed: posts exactly ONE summary -Reply on the shared meta thread
+        (callers list every dismissed path:line + reason in that one reply),
+        then marks the meta thread Closed. Never one reply per finding, and
+        never WontFix per finding (the thread is a container, not a finding).
+
+      All -Findings must be meta-sourced and share one metaThreadId.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        $Findings,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('fixed', 'dismissed')]
+        [string]$Disposition,
+
+        [string]$Reply = '',
+
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        [string]$WorkspaceRoot = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $list = @($Findings | Where-Object { $null -ne $_ })
+    if ($list.Count -eq 0) {
+        throw 'Complete-CodeAntReviewMetaFindings requires at least one finding.'
+    }
+    $metaThreadIds = @()
+    foreach ($finding in $list) {
+        if (-not (Test-IsCodeAntMetaSourcedFinding -Finding $finding)) {
+            throw 'Complete-CodeAntReviewMetaFindings only accepts meta-sourced findings (Quality Gate security / Nitpicks). Use Complete-CodeAntReviewFinding for file findings.'
+        }
+        $metaThreadIds += Get-CodeAntMetaThreadIdFromFinding -Finding $finding
+    }
+    $uniqueIds = @($metaThreadIds | Where-Object { $null -ne $_ } | Select-Object -Unique)
+    if ($uniqueIds.Count -ne 1) {
+        throw 'Meta findings must share exactly one metaThreadId.'
+    }
+    $metaThreadId = [int]$uniqueIds[0]
+
+    if ($Disposition -eq 'fixed') {
+        return [pscustomobject]@{
+            PullRequestId = $PullRequestId
+            MetaThreadId  = $metaThreadId
+            FindingCount  = $list.Count
+            Disposition   = $Disposition
+            Status        = 'AwaitingReReview'
+            CommentId     = $null
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Reply)) {
+        throw 'Dismissed meta findings require a single summary -Reply covering every dismissed finding in the group.'
+    }
+    $Reply = $Reply -creplace '(\\\\n|\\n|`n)', [Environment]::NewLine
+
+    $oneThread = Get-CodeAntReviewThreadById -PullRequestId $PullRequestId -ThreadId $metaThreadId `
+        -WorkspaceRoot $WorkspaceRoot -Collection $Collection -Project $Project `
+        -Repository $Repository -ServerUrl $ServerUrl
+    $parentCommentId = $null
+    foreach ($comment in (Get-AdoThreadComments -Thread $oneThread)) {
+        if ($null -ne (Get-PsObjectPropertyValue -Object $comment -Name 'id' -Default $null)) {
+            $parentCommentId = [int]$comment.id
+            break
+        }
+    }
+    if ($null -eq $parentCommentId) {
+        throw "Meta thread $metaThreadId has no comment to reply under."
+    }
+    $alreadyPosted = Test-CodeAntReviewReplyAlreadyPosted -Threads @($oneThread) `
+        -ThreadId $metaThreadId -Reply $Reply
+
+    Import-CodeAntAdoCore | Out-Null
+    $posted = $null
+    if (-not $alreadyPosted) {
+        $posted = Invoke-CodeAntReviewWriteComment -Write {
+            Add-AdoCorePullRequestThreadComment -PullRequestId $PullRequestId `
+                -ThreadId $metaThreadId -ParentCommentId $parentCommentId -Content $Reply `
+                -WorkspaceRoot $WorkspaceRoot -Collection $Collection -Project $Project `
+                -Repository $Repository -ServerUrl $ServerUrl
+        } -PostedOnThread {
+            $recheck = Get-CodeAntReviewThreadById -PullRequestId $PullRequestId -ThreadId $metaThreadId `
+                -WorkspaceRoot $WorkspaceRoot -Collection $Collection -Project $Project `
+                -Repository $Repository -ServerUrl $ServerUrl
+            Test-CodeAntReviewReplyAlreadyPosted -Threads @($recheck) `
+                -ThreadId $metaThreadId -Reply $Reply
+        }
+    }
+    Set-AdoCorePullRequestThreadStatus -PullRequestId $PullRequestId `
+        -ThreadId $metaThreadId -Status Closed `
+        -WorkspaceRoot $WorkspaceRoot -Collection $Collection -Project $Project `
+        -Repository $Repository -ServerUrl $ServerUrl
+
+    return [pscustomobject]@{
+        PullRequestId = $PullRequestId
+        MetaThreadId  = $metaThreadId
+        FindingCount  = $list.Count
+        Disposition   = $Disposition
+        Status        = 'Closed'
+        CommentId     = $(if ($posted) { $posted.CommentId } else { $null })
+    }
+}
+
 function Clear-CodeAntReviewRequests {
     param(
         [Parameter(Mandatory = $true)]
@@ -763,7 +1044,7 @@ function Clear-CodeAntReviewRequests {
         $clearParams.Threads = $Threads
     }
     else {
-        # One snapshot for both clears — avoids a second fetch that can throw after kicks were fixed.
+        # One snapshot for both clears - avoids a second fetch that can throw after kicks were fixed.
         $clearParams.Threads = Get-CodeAntPullRequestThreads -PullRequestId $PullRequestId `
             -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl `
             -WorkspaceRoot $WorkspaceRoot

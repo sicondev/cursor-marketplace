@@ -14,8 +14,8 @@ Clearance hands off one file at a time. You triage every CodeAnt issue on that p
 
 | Field | Meaning |
 |-------|---------|
-| `Path` | One repo-relative file path for this handoff |
-| `issues[]` | The **full** set of CodeAnt findings on that `Path` for this handoff (each with `Id`, `Number`, `Path`, line/comment fields as provided) |
+| `Path` | One repo-relative file path for this handoff — or `''` (empty) for **pathless** findings whose location was not posted (e.g. a Quality Gate failure with gate/type context but no file/line row). For an empty `Path`, locate the issue from the issues' context plus the PR diff, fix it, and report every file you changed in `report.paths`; return `ask` if the evidence cannot pin the location. Never open an external results URL — work from the workspace. |
+| `issues[]` | The **full** set of CodeAnt findings on that `Path` for this handoff (each with `Id`, `Number`, `Path`, line/comment fields as provided; meta-sourced findings also carry `Source` / `MetaThreadId` and gate/type/confidence context when present) |
 | `PullRequestId` | ADO pull request id |
 | `WorkspaceRoot` | Product repo root |
 
@@ -120,7 +120,7 @@ return that object to clearance
 
 ## `paths`
 
-Include this file plus any product files you edited in `paths` (the validator merges `-Path` with any `report.paths` you attach).
+Include this file plus any product files you edited in `paths` (the validator merges `-Path` with any `report.paths` you attach). When the handoff `Path` is empty, `paths` is exactly the product files you edited — that is how the coordinator learns where a pathless finding was fixed, and those paths are containment-validated under the repo root.
 
 ## Validation helper
 

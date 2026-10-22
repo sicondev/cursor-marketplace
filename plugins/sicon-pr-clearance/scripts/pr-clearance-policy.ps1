@@ -10,6 +10,11 @@ function Get-PrClearancePolicyFuseReason {
         [string[]]$ChangedPaths
     )
     $path = [string]$Finding.Path
+    # Pathless findings (no location posted) have no scope to test against the
+    # frozen PR file list - they continue to the specialist, which locates them.
+    if ([string]::IsNullOrWhiteSpace($path)) {
+        return ''
+    }
     if ([bool]$Register.clearancePathsFrozen) {
         if (-not (Test-PrClearanceFindingInClearanceSnapshot -Register $Register -Path $path)) {
             if (Test-PrClearanceFindingInJoinedPaths -Register $Register -Path $path) {

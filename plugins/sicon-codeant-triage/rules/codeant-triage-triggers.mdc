@@ -9,6 +9,10 @@ alwaysApply: false
 
 **Naming:** **CodeAnt (ADO)** = DevOps PR reviewer. **CodeAnt Triage** = this local workflow (`/codeant-triage`).
 
+## THE GATE — one turn, no exceptions
+
+Fetch prints a § A scaffold per finding. For **every** finding: complete its slots → emit the **completed** block in chat → `AskQuestion` **in the same turn**, immediately after the block. A card preceded only by tool calls, a fetch/index summary, or “presenting finding #N…” prose is a **naked card — a failed turn**. A scaffold with `<complete: …>` slots left in it is equally failed. Emit the block in **blocked sections** — bold label on its own line, body beneath, blank line between sections; collapsing it into one run-on paragraph is a failed block even with the card after it. This gate is repeated from the command doc because it is the one rule that must survive skim-reading it.
+
 When the user message matches a trigger below, follow **`/codeant-triage`** (do not `@~/.cursor/commands/codeant-triage.md` — plugin commands live under the plugin tree).
 
 User catalog: `%USERPROFILE%\.cursor\codeant-triage\anti-patterns.user.md`. Core catalog + scripts: dual-resolve `Get-CodeAntTriagePaths.ps1` (user pack `~\.cursor\packs\codeant-triage\scripts\` or plugin `sicon-codeant-triage`). Optional `codeant-uap-*.mdc`.
@@ -44,9 +48,9 @@ Resolve `UAP-N`, confirm when ambiguous, clear **only** the Disposition cell —
 Do **not** evaluate all findings into one decision table and batch-AskQuestion as the opening. Follow the command doc loop:
 
 1. Short index (optional) → start finding #1
-2. **Explain in chat** → same turn: **`AskQuestion` tool call** (treat) — **do not** write options into the message
+2. **Explain in chat** — the full per-finding block (Header, CodeAnt said, Context, Rule cross-check, Verdict, Proposed change, Recommendation) → same turn, immediately after it: **`AskQuestion` tool call** (treat) — **do not** write options into the message
 3. Treat options: `Fix` / `Won't fix` / `Skip`; add **`Fix remaining`** when later findings exist
-4. If **Fix**: implement → show diff → same turn: **`AskQuestion` tool call** (confirm)
+4. If **Fix**: implement → Confirm block (finding recap, files/behaviour changed, diff summary, checks — **not** a §A re-emit) → **`AskQuestion` tool call** (confirm)
 5. If **Won't fix**: capture ADO reason → optional personal-todo offer (only when remediation intent + pack installed) → next finding
 6. Next finding → … → session rollup → finalize AskQuestion
 
@@ -54,7 +58,7 @@ Do **not** evaluate all findings into one decision table and batch-AskQuestion a
 
 **Banned in chat:** `Reply with one of`, numbered `1. Fix`, pipe lists `Fix | Won't fix | Skip`. Those are not AskQuestion — they force typing. Options live **only** in the AskQuestion tool args. Do **not** add `Something else` — Cursor may already inject `Other…`.
 
-Never put findings detail inside the question card.
+Never put findings detail inside the question card — detail belongs in the chat block **before** it. **No naked AskQuestion (hard gate):** at an **entry gate** (Treat per finding, catalog, finalize) never invoke `AskQuestion` unless that finding's full explain block (or the gate's promote summary / rollup) was emitted in chat in the same turn, immediately before the call; the Setup index, fetch output, an earlier finding's block, or an earlier turn's block do **not** count, and a missing/stale block (resume, intervening user message such as “first show me your findings/rationale”, re-issued card) is emitted/re-emitted first, same turn. At a **continuation gate** (Confirm after Fix, Revise re-ask, batch accept) do **not** re-emit the explain block — context carries over from the answered Treat card across the implementation turn — but the card must be immediately preceded by a Confirm block (finding recap, files/behaviour changed, diff summary/stat, checks); silent edit/check tool activity alone makes the card naked. A card without its applicable block is a failed turn, not a shortcut.
 
 ## Finalize triggers (CodeAnt Triage only — after session rollup)
 
