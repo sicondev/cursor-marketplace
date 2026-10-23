@@ -306,7 +306,7 @@ function Initialize-PrClearanceDefaultTools {
                     Import-PrClearanceScriptToSession -Path $silentPath
                 }
             }
-            foreach ($name in @('Get-CodeAntReviewState', 'Request-CodeAntReview', 'Get-CodeAntReviewFindings', 'Complete-CodeAntReviewFinding', 'Clear-CodeAntReviewRequests', 'Invoke-CodeAntSilentTriage')) {
+            foreach ($name in @('Get-CodeAntReviewState', 'Request-CodeAntReview', 'Get-CodeAntReviewFindings', 'Complete-CodeAntReviewFinding', 'Complete-CodeAntReviewMetaFindings', 'Clear-CodeAntReviewRequests', 'Invoke-CodeAntSilentTriage')) {
                 if (-not (Get-Command -Name $name -ErrorAction SilentlyContinue)) {
                     throw "Tool 'codeant-triage' is installed but missing $name. Upgrade the codeant-triage tool, then retry /pr-clearance."
                 }
@@ -317,6 +317,7 @@ function Initialize-PrClearanceDefaultTools {
             'Clear-ReviewRequests'   = { param($PullRequestId, $WorkspaceRoot) Clear-CodeAntReviewRequests -PullRequestId $PullRequestId -WorkspaceRoot $WorkspaceRoot }
             'Get-ReviewFindings'     = { param($PullRequestId, $WorkspaceRoot) Get-CodeAntReviewFindings -PullRequestId $PullRequestId -WorkspaceRoot $WorkspaceRoot }
             'Complete-ReviewFinding' = { param($Finding, $Disposition, $Reply, $PullRequestId, $WorkspaceRoot) Complete-CodeAntReviewFinding -Finding $Finding -Disposition $Disposition -Reply $Reply -PullRequestId $PullRequestId -WorkspaceRoot $WorkspaceRoot }
+            'Complete-ReviewMetaFindings' = { param($Findings, $Disposition, $Reply, $PullRequestId, $WorkspaceRoot) Complete-CodeAntReviewMetaFindings -Findings $Findings -Disposition $Disposition -Reply $Reply -PullRequestId $PullRequestId -WorkspaceRoot $WorkspaceRoot }
             'Invoke-Specialist'        = {
                 param($Path, $Issues, $PullRequestId, $WorkspaceRoot, $PreparedResults)
                 if (-not (Get-Command -Name Invoke-CodeAntSilentTriage -ErrorAction SilentlyContinue)) {
@@ -490,6 +491,33 @@ function Get-ReviewFindings {
     return @(& $op $PullRequestId $WorkspaceRoot)
 }
 
+function Complete-ReviewMetaFindings {
+    <#
+    .SYNOPSIS
+      Complete a group of meta-sourced findings (Quality Gate security rows /
+      Nitpicks sharing one meta thread). fixed = no ADO post, proof is the
+      re-review clearing them; dismissed = one summary reply + meta Closed.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        $Findings,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('fixed', 'dismissed')]
+        [string]$Disposition,
+
+        [string]$Reply = '',
+
+        [Parameter(Mandatory = $true)]
+        [int]$PullRequestId,
+
+        [string]$WorkspaceRoot = ''
+    )
+
+    $op = Invoke-PrClearanceOperation -Port findings -Operation 'Complete-ReviewMetaFindings'
+    return & $op $Findings $Disposition $Reply $PullRequestId $WorkspaceRoot
+}
+
 function Complete-ReviewFinding {
     param(
         [Parameter(Mandatory = $true)]
@@ -620,6 +648,12 @@ function Get-PrClearanceResolvedPath {
 }
 
 function Test-PrClearanceQuiet {
+    <#
+    .SYNOPSIS
+      Quiet = review finished for this SHA and the consolidated findings list
+      (file + Nitpicks + Quality Gate security, normalised by the review port)
+      is empty. A FAILED gate therefore blocks quiet via its findings.
+    #>
     param(
         [string]$State = '',
         $Findings = $null,
@@ -893,8 +927,10 @@ function Group-PrClearancePassFindingsByPath {
     param([Parameter(Mandatory = $true)]$Findings)
     $map = @{}
     foreach ($f in @($Findings)) {
+        # Pathless findings (e.g. a Quality Gate failure with no file/line detail
+        # posted in ADO) group under '' - the specialist locates the issue from
+        # its context and reports the paths it changed back.
         $key = Get-PrClearanceNormalizedPath -Path $f.Path
-        if ([string]::IsNullOrWhiteSpace($key)) { continue }
         if (-not $map.ContainsKey($key)) {
             $map[$key] = [pscustomobject]@{ Path = $key; Issues = New-Object 'System.Collections.Generic.List[object]' }
         }
@@ -907,7 +943,7 @@ function Group-PrClearancePassFindingsByPath {
 
 function Invoke-PrClearanceSpecialist {
     param(
-        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Path,
         [Parameter(Mandatory = $true)]$Issues,
         [Parameter(Mandatory = $true)][int]$PullRequestId,
         [string]$WorkspaceRoot = '',
@@ -1832,25 +1868,28 @@ function Get-PrClearancePolicyOverride {
         [string[]]$ChangedPaths
     )
     $path = [string]$Finding.Path
-    if ([bool]$Register.clearancePathsFrozen) {
-        if (-not (Test-PrClearanceFindingInClearanceSnapshot -Register $Register -Path $path)) {
-            if (Test-PrClearanceFindingInJoinedPaths -Register $Register -Path $path) {
-                $span = Get-PrClearanceFindingLineSpan -Finding $Finding
-                if ($null -ne $span) {
-                    $ranges = @(Get-PrClearanceRegisterHunkRanges -Register $Register -Path $path)
-                    if (-not (Test-PrClearanceLineOverlapsHunks -Start $span.start -End $span.end -Hunks $ranges)) {
-                        return 'dismiss'
+    # Pathless findings have no scope to test - never dismiss them as out-of-PR.
+    if (-not [string]::IsNullOrWhiteSpace($path)) {
+        if ([bool]$Register.clearancePathsFrozen) {
+            if (-not (Test-PrClearanceFindingInClearanceSnapshot -Register $Register -Path $path)) {
+                if (Test-PrClearanceFindingInJoinedPaths -Register $Register -Path $path) {
+                    $span = Get-PrClearanceFindingLineSpan -Finding $Finding
+                    if ($null -ne $span) {
+                        $ranges = @(Get-PrClearanceRegisterHunkRanges -Register $Register -Path $path)
+                        if (-not (Test-PrClearanceLineOverlapsHunks -Start $span.start -End $span.end -Hunks $ranges)) {
+                            return 'dismiss'
+                        }
                     }
                 }
-            }
-            else {
-                return 'dismiss'
+                else {
+                    return 'dismiss'
+                }
             }
         }
-    }
-    elseif ($PSBoundParameters.ContainsKey('ChangedPaths') -and $null -ne $ChangedPaths) {
-        if (-not (Test-PrClearanceFindingInPrScope -Path $path -ChangedPaths $ChangedPaths)) {
-            return 'dismiss'
+        elseif ($PSBoundParameters.ContainsKey('ChangedPaths') -and $null -ne $ChangedPaths) {
+            if (-not (Test-PrClearanceFindingInPrScope -Path $path -ChangedPaths $ChangedPaths)) {
+                return 'dismiss'
+            }
         }
     }
     if (Test-PrClearanceFingerprintExhausted -Register $Register -Finding $Finding) {

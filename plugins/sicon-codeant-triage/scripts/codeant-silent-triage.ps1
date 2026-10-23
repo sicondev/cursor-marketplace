@@ -10,7 +10,7 @@ function Get-CodeAntSilentTriageNormalizedPath {
 
 function Assert-CodeAntSilentTriageIssues {
     param(
-        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Path,
         $Issues
     )
     $want = Get-CodeAntSilentTriageNormalizedPath -Path $Path
@@ -134,7 +134,10 @@ function New-CodeAntSilentTriageResult {
 
 function Invoke-CodeAntSilentTriage {
     param(
-        [Parameter(Mandatory = $true)][string]$Path,
+        # Path may be '' for pathless findings (no location posted): the
+        # specialist locates the issue from its context and reports the
+        # paths it changed via report.paths.
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Path,
         [Parameter(Mandatory = $true)]$Issues,
         [Parameter(Mandatory = $true)][int]$PullRequestId,
         [string]$WorkspaceRoot = '',
@@ -187,7 +190,9 @@ function Invoke-CodeAntSilentTriage {
         })
     }
     $paths = New-Object 'System.Collections.Generic.List[string]'
-    [void]$paths.Add($Path)
+    if (-not [string]::IsNullOrWhiteSpace($Path)) {
+        [void]$paths.Add($Path)
+    }
     foreach ($r in $out) {
         if ($r.report -and $r.report.PSObject.Properties.Name -contains 'paths') {
             foreach ($p in @($r.report.paths)) {

@@ -70,7 +70,7 @@ For **each** in-scope UAP:
 3. If **no** profile rule, search all files under roots within repo Scope (still noise-exclude) — do not load this UAP against files in a mismatched remote workspace.
 4. Emit candidate findings: path, UAP id, ~line, signal / short why.
 
-**Progress / abort:** On long scans, periodically summarize progress in chat and honor chat `abort` / `stop`. Optionally **`AskQuestion`**: `Continue scanning?` → `Continue (Recommended)` \| `Stop session` (do not list options in chat).
+**Progress / abort:** On long scans, periodically summarize progress in chat and honor chat `abort` / `stop`. Optionally **`AskQuestion`**: `Continue scanning?` → `Continue (Recommended)` \| `Stop session` (do not list options in chat) — only immediately after a progress summary in chat in the same turn (roots/files scanned, findings so far, what remains); a `Continue scanning?` card without that summary is naked.
 
 Collect all findings, then emit a discovery index:
 
@@ -96,7 +96,7 @@ Remote: `<remoteId>` | Roots: `<…>` | **N findings** across **U** UAPs
 | `report_only` | `Report only` |
 | `abort` | `Stop session` |
 
-- **`prompt`:** `Deep scan complete — next step?`
+- **`prompt`:** `Deep scan complete — next step?` — the discovery index above is location-only and does **not** license this card on its own: immediately before the card, emit a discovery summary in chat (counts per UAP, representative hits with why, and whether hits look real or false-positive-prone) so `Fix now (Recommended)` is a decision the user can evaluate
 
 | Choice | Next |
 |--------|------|
