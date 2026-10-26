@@ -3,7 +3,7 @@ description: Invoke DLB (Devops Leading Brief) — brief; implement inline by de
 alwaysApply: false
 ---
 
-<!-- contrib-managed: devops-leading-brief@0.4.2 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: devops-leading-brief@0.5.0 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
 
 # DLB triggers — Devops Leading Brief
 
@@ -24,8 +24,8 @@ When the user message matches a trigger below, follow **`/DLB`** — **Skill (Du
 Also engage **Orient Q&A** when, in a thread that already ran DLB, the user asks where to start or how to probe the loaded card — answer from context; do not change mode.
 
 **Brief:** Enrich in the report; **purge stale `{id}` brief files then write** thin brief; stop (unless **fullmonty**). Enrich is not a gate option.  
-**Implement:** **inline** unless the user pins Superpowers; **seed only from this-invoke thin brief** (never a prior-run file); require clean write-root tree; then **offer** ship (message gate before any commit/PR) — do not auto-ship. Hard fence: do not auto-load Superpowers / SDD / TDD.  
-**fullmonty:** implement + ship **autoland** (draft + land as if **`go`**); stop only on obvious blockers; product decisions **early** (before first edit when visible); **disregard** security broaden; when clearance tooling resolves → **drive `/pr-clearance` to quiet** before ship-complete, else warn + skip (plugin surface cannot require clearance). **Prove:** new tests only when Fix-in is **270**; non-270 → build + existing tests; cherry follow-ups omit tests/project files unless Join. Not a rename of `/nineyards`.
+**Implement:** **inline** unless the user pins Superpowers; **seed only from this-invoke thin brief** (never a prior-run file); require clean write-root tree; **typesetter Dual Resolve required** before first edit (fail closed if missing); tip-close after code (silent format→lint scripts + hard static floor) then Prove; then **offer** ship (message gate before any commit/PR) — do not auto-ship. Hard fence: do not auto-load Superpowers / SDD / TDD.  
+**fullmonty:** implement + ship **autoland** (draft + land as if **`go`**); stop only on obvious blockers (incl. typesetter miss / tip-close red); product decisions **early** (before first edit when visible); **disregard** security broaden; when clearance tooling resolves → **drive `/pr-clearance` to quiet** before ship-complete, else warn + skip (plugin surface cannot require clearance). **Tip close + Prove:** silent typesetter prep + static floor then Prove; new tests only when Fix-in is **270**; non-270 → build + existing tests; cherry follow-ups omit tests/project files unless Join. Not a rename of `/nineyards`.
 
 ## When NOT to engage
 

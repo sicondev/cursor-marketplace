@@ -519,7 +519,7 @@ function Test-IsCodeAntMetaThread {
         '(?m)^##\s+(?:\S+\s+)?Ticket Scope Review\b'
         '(?m)^##\s+(?:\S+\s+)?CodeAnt AI\s*[-\u2014]\s*Review Status\b'
         '(?m)^#{1,2}\s+(?::[\w+]+:\s*)?CodeAnt Quality Gate Results\b'
-        '(?m)^##\s+CodeAnt Nitpicks\b'
+        (Get-CodeAntNitpickHeaderPattern)
         '(?m)^(?:##\s+|\*\*)?CodeAnt PR Risk\b'
     )
     foreach ($threadComment in (Get-AdoThreadComments -Thread $Thread)) {
@@ -631,6 +631,8 @@ function Get-CodeAntFileFindingsFromThreads {
 #      generic File/Line detail table per failed gate (Secrets on PR 31460).
 #   2. "CodeAnt Nitpicks" - numbered suggestions whose file/line live only in a
 #      markdown link (`path:line`) on the line under each #### heading.
+#      Headings are either plain "## CodeAnt Nitpicks" or the same title after
+#      a badge image link and &nbsp; (see Get-CodeAntNitpickHeaderPattern).
 # Both are normalised here. Nitpicks become comment-equivalent findings (same
 # Path/Line/Comment shape as file findings, Source = 'nitpick'). Quality Gate
 # detail rows become *security findings* (source/gate/path/line/type/confidence/
@@ -1019,6 +1021,19 @@ function Get-CodeAntDismissedMetaFindingKeys {
     return $keys
 }
 
+function Get-CodeAntNitpickHeaderPattern {
+    <#
+    .SYNOPSIS
+      Heading regex for a CodeAnt Nitpicks meta comment.
+    .DESCRIPTION
+      Matches plain "## CodeAnt Nitpicks" and the badge form that inserts HTML
+      tags and &nbsp; between the hashes and the title. A non-breaking space is
+      already covered by \s, so it is not a separate alternative. ASCII only:
+      this file is UTF-8 without BOM and Windows PowerShell 5.1 decodes it as ANSI.
+    #>
+    return '(?m)^##\s+(?:(?:<[^>]+>|&nbsp;)\s*)*CodeAnt Nitpicks\b'
+}
+
 function Get-CodeAntNitpickFindingsFromThreads {
     <#
     .SYNOPSIS
@@ -1040,7 +1055,7 @@ function Get-CodeAntNitpickFindingsFromThreads {
             $filePath = [string](Get-PsObjectPropertyValue -Object $threadContext -Name 'filePath' -Default '')
         }
         if (-not [string]::IsNullOrWhiteSpace($filePath)) { continue }
-        $comment = Get-CodeAntMetaComment -Thread $thread -HeaderPattern '(?m)^##\s+CodeAnt Nitpicks\b'
+        $comment = Get-CodeAntMetaComment -Thread $thread -HeaderPattern (Get-CodeAntNitpickHeaderPattern)
         if ($null -eq $comment) { continue }
         $threadId = 0
         $rawId = Get-PsObjectPropertyValue -Object $thread -Name 'id' -Default 0
