@@ -1,6 +1,6 @@
 # Sicon Devops Leading Brief
 
-Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance
+Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); typesetter required; tip-close silent format+lint + hard static floor then Prove; ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance
 
 Install from the Sicon Team Marketplace, then use `/DLB` in chat.
 
@@ -23,7 +23,11 @@ This pack’s `content/` is README-only; adapters carry the Cursor surfaces. Pre
 | `/DLB <id> implement` | Implement — **inline** (Superpowers only if pinned); ship offer by default |
 | `/DLB <id> fullmonty` | Implement + ship **autoland** (no Enrich stop / ship offer / message gate) + `/pr-clearance` **to quiet** when available (else warn + skip); product decisions early; disregard security broaden |
 
+**Tip close (Implement / fullmonty):** after product code, before ship — Dual Resolve **typesetter** must already have succeeded at implement entry (fail closed if missing). Then silent format → silent lint (typesetter **scripts** + `-Fix`; never `/format-ready` / `/lint-ready` ask UX) → hard static floor → Prove. Engine none / NO-GATE → quiet pass (no per-run nag). Static floor: .NET = `dotnet build` touched projects (all Fix-in lines, including **270**); Hub/TS = first present `package.json` script among `typecheck` → `check:types` → `tsc` only (do not invent `tsc --noEmit`; Vitest ≠ typecheck). Missing floor tool → honest pass. Amend after tip-close → re-enter from format prep.
+
 **Prove / Fix-in:** new unit-test *files* only when card **Fix in** is **270** (mainline). Fix-in **260** (and other non-270) → build + existing splash tests only. Cherry to another version → product paths by default (omit `*Tests*`, `*.test.*` / `*.spec.*`, `__tests__/**`, and project-file churn unless Join).
+
+**Non-goals of tip-close:** nineyards format/lint composition; adding ESLint/analyzer rules to product repos; changing slash ask-first UX for `/format-ready` / `/lint-ready`.
 
 ## Make implementers engage my skills / Tasks
 
@@ -91,7 +95,7 @@ Notes:
 
 ## Reliability
 
-Supported contract: `/DLB` + skill + triggers. ADO/Halo quality and ship-chain success remain agent- and environment-dependent.
+Supported contract: `/DLB` + skill + triggers; pack dogfood **requires** `ado-core` + `typesetter`. Implement tip-close Dual Resolve of typesetter is fail-closed. Write-root format/lint/build engines may be absent (NO-GATE / honest static pass). ADO/Halo quality and ship-chain success remain agent- and environment-dependent.
 
 ## Reason for existing
 

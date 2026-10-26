@@ -3,15 +3,17 @@ name: devops-leading-brief
 description: >-
   Devops Leading Brief (DLB) — ADO card context; brief (findings + Enrich) written
   to a file; implement defaults to inline (Superpowers only when the user pins it)
-  under Reuse→Minimal→YAGNI / splash / prove / security policy. Use for /DLB or,
-  after a brief in-thread, bare implement / Orient / evidence drops / fullmonty.
-  Implement always seeds from the thin brief written this invoke — never reuse a
-  prior-run brief file. fullmonty = implement + autoland ship (no message gate) +
-  pr-clearance. Prove: new tests only when Fix-in is 270.
+  under Reuse→Minimal→YAGNI / splash / tip-close / prove / security policy. Use for
+  /DLB or, after a brief in-thread, bare implement / Orient / evidence drops /
+  fullmonty. Implement always seeds from the thin brief written this invoke —
+  never reuse a prior-run brief file. Typesetter required at implement entry;
+  tip-close = silent format+lint + hard static floor then Prove. fullmonty =
+  implement + autoland ship (no message gate) + pr-clearance. Prove: new tests
+  only when Fix-in is 270.
 disable-model-invocation: true
 ---
 
-<!-- contrib-managed: devops-leading-brief@0.4.2 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: devops-leading-brief@0.5.0 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
 
 
 # Devops Leading Brief (DLB)
@@ -70,7 +72,7 @@ One token meaning **implement + ship autoland + `/pr-clearance`** — not a rena
 | After brief in-thread: bare `fullmonty` | Same as implement go-ahead **plus** ship autoland. |
 | `/DLB <id> implement fullmonty` | Same as `/DLB <id> fullmonty`. |
 
-**Stops only on obvious blockers** (dirty unrelated WIP, missing secrets, unresolved product decision, prove red that cannot be fixed in splash, medium+ security fail-closed, Halo browser tools missing / user declined when required). **Do not** stop for Enrich / refinement shopping, optional-hardening / broaden offers, “Ship this tip?”, or Ship message gate / `go`.
+**Stops only on obvious blockers** (dirty unrelated WIP, missing secrets, unresolved product decision, **typesetter Dual Resolve miss**, tip-close / static-floor / prove red that cannot be fixed in splash, medium+ security fail-closed, Halo browser tools missing / user declined when required). **Do not** stop for Enrich / refinement shopping, optional-hardening / broaden offers, “Ship this tip?”, Ship message gate / `go`, or per-run NO-GATE nags.
 
 **Product decisions early (fullmonty):** After Read of the this-invoke thin brief (and Org pack load), **before the first code edit**, surface any unresolved product decisions that would block a correct tip (ambiguous AC, missing Fix-in/behaviour choice, conflicting card evidence). Ask those **immediately** — do **not** defer them until mid-implement, after coding, or after the security scan. If none are visible from the brief, proceed; if one appears later, stop at discovery (still a blocker) but prefer catching them at entry.
 
@@ -339,9 +341,10 @@ After the chat report (unless already-fixed early-exit):
 1. **Read** the trimmed implementer brief file written this invoke (cold path: purge → write first). Do **not** require a re-slash. Do **not** seed from a pre-existing on-disk brief.
 2. **Org pack load** for each write root (resolve packs → **glob ∩ brief Paths** → stamp thin brief → **Read** only the selected set) **before** first code edit.
 3. **Repo toolkit resolve** for each write root (Read `.cursor/agent-implementation-toolkit.json` when present → **when.globs ∩ brief Paths** → stamp thin brief → engage **`read`** now; **`task` spawn only when profile-allowlisted** after product decisions/branch) — see **Repo toolkit load** below. Missing/empty/whitespace file → built-ins only.
-4. Hand **that file path** (+ Org packs list + selected toolkit ids) into the selected approach as **sole card-truth and initial seed** (inline: Read file then code; Superpowers when pinned: point plan/execute at the file — never the fat chat report, never a prior-run brief).
-5. Apply **Implement policy** for the whole run regardless of path.
-6. When the fix is done, apply **Ship flag**.
+4. **Typesetter Dual Resolve** (required) — fail closed if missing before first code edit; cache `$typesetter` for tip-close.
+5. Hand **that file path** (+ Org packs list + selected toolkit ids) into the selected approach as **sole card-truth and initial seed** (inline: Read file then code; Superpowers when pinned: point plan/execute at the file — never the fat chat report, never a prior-run brief).
+6. Apply **Implement policy** for the whole run regardless of path.
+7. When the fix is done: **Tip close** (silent format → lint → hard static floor) → **Prove** → then apply **Ship flag**.
 
 ## Implement mode
 
@@ -358,12 +361,13 @@ Unless already-fixed early-exit. If a Halo case exists and API failed, **navigat
 4. Resolve **Implement path** (inline unless user pinned Superpowers — see above).
 5. **Org pack load** — see below. Resolve packs for each write root; select loaders by **glob ∩ Paths**; stamp/refresh the thin-brief **Org packs** row; **Read** only that set **before** the first code edit. Hand the same selected list to Superpowers/planners with the thin file **only when that path is pinned**.
 6. **Repo toolkit resolve + `read`** — see below. Read `{writeRoot}/.cursor/agent-implementation-toolkit.json` when present; select entries by **when.globs ∩ Paths**; stamp thin-brief **Toolkit** row; engage **`read`** rows now. Do **not** spawn `task` rows yet. Missing, empty, or whitespace-only catalog → `Toolkit: none` and continue (built-ins only).
-7. **fullmonty — product decisions first:** from the thin brief (+ just-Read org + toolkit **read** context), list unresolved product decisions that block a correct tip. If any → **ask now and wait**; do not start coding, branching for the tip beyond a clean baseline name, spawn toolkit **task** agents, or security/harden work until answered. Ordinary implement may still ask mid-run; fullmonty prefers this entry gate.
-8. **Create working branch(es)** on write roots from clean baseline when needed. Name from ADO work-item type: `bug/{id}-short-slug` for Bug; `feature/{id}-short-slug` for User Story / Feature; otherwise `chore/{id}-short-slug` (or the type’s usual prefix).
-9. **Repo toolkit `task` spawn** — for selected `engage: task` rows that pass the **profile allowlist** + on-disk agent gates, spawn Cursor Task **after** steps 7–8 (see **Repo toolkit load**). Missing allowlist → skip all `task` spawns (`read` already done).
-10. Run the selected path with the **implementer brief file** as the **initial seed and only card-truth** (toolkit/org Reads already applied; allowlisted Tasks may be in flight). DLB does not invent a plan dialect; it only supplies card truth + constitution.
-11. Obey **Implement policy** below for the whole run.
-12. When the fix is done, apply **Ship flag**: default **offer only**; run **Ship chain** only if ship intent is on. On **fullmonty**, skip offer + message gate and autoland the chain (including `/pr-clearance`).
+7. **Typesetter resolve (required — before first code edit):** **Dual Resolve** `sicon-typesetter` → `scripts/` (plugin direct → newest `plugins/marketplaces|cache` bounded → packs dogfood only if no plugin; never prefer pack). Require `Get-TypesetterContext.ps1`, `Invoke-TypesetterFormatReady.ps1`, and `Invoke-TypesetterLintReady.ps1` on that scripts root. Cache `$typesetter` for tip-close. **Miss → stop before coding** — tell the operator to install Team Marketplace **Sicon Typesetter** (`sicon-typesetter`) or pack dogfood `Install-UserPack -Pack typesetter`. Do **not** soft-skip (unlike pr-clearance). Do **not** run silent format/lint yet — clean tree is a no-op; tip-close owns prep after the tip has dirty files.
+8. **fullmonty — product decisions first:** from the thin brief (+ just-Read org + toolkit **read** context), list unresolved product decisions that block a correct tip. If any → **ask now and wait**; do not start coding, branching for the tip beyond a clean baseline name, spawn toolkit **task** agents, or security/harden work until answered. Ordinary implement may still ask mid-run; fullmonty prefers this entry gate.
+9. **Create working branch(es)** on write roots from clean baseline when needed. Name from ADO work-item type: `bug/{id}-short-slug` for Bug; `feature/{id}-short-slug` for User Story / Feature; otherwise `chore/{id}-short-slug` (or the type’s usual prefix).
+10. **Repo toolkit `task` spawn** — for selected `engage: task` rows that pass the **profile allowlist** + on-disk agent gates, spawn Cursor Task **after** steps 8–9 (see **Repo toolkit load**). Missing allowlist → skip all `task` spawns (`read` already done).
+11. Run the selected path with the **implementer brief file** as the **initial seed and only card-truth** (toolkit/org Reads already applied; allowlisted Tasks may be in flight). DLB does not invent a plan dialect; it only supplies card truth + constitution.
+12. Obey **Implement policy** below for the whole run.
+13. When the fix is done: run **Tip close (silent prep + static floor)** then **Prove** (see below). Only after tip-close + Prove are green, apply **Ship flag**: default **offer only**; run **Ship chain** only if ship intent is on. On **fullmonty**, skip offer + message gate and autoland the chain (including `/pr-clearance`).
 
 ### Implement policy (constitution)
 
@@ -375,9 +379,11 @@ Apply for the whole implement run (any path). **Order is load-bearing: Reuse →
 - **Splash** — prefer contain; name write roots; do not expand into extra repos/modules without an explicit user Join. Adding a **focused unit test** for an **existing** unit-testable type next to the repo’s existing test project/layout is **in splash** when Prove requires it **and** Fix-in is **270** (not a Join). Inventing a class, struct, interface, or file **only** to host a test is **out of splash** and forbidden (see Prove). On non-270 Fix-in, new test files are **out of splash**.
 - **Org packs** — see **Org pack load** below. Soft conventions (T3) only bind when selected via **loader glob ∩ brief Paths** and Read; do not treat pack install as ambient context.
 - **Repo toolkit** — see **Repo toolkit load** below. Skills (`engage: read`) bind from the write-root catalog alone; Task spawn also requires the operator profile allowlist. DLB stays product-blind — never hardcode product agent names in this skill.
-- **Prove** — see **Prove (inline-first)** below. Fail closed on red. Gate **new** test files on Fix-in **270** (see Prove). On non-270, do not invent tests to “satisfy Prove.” Do not invent a type **or** a thin wrapper method so a unit test has something to name.
+- **Typesetter** — required at Implement entry (step 7). Dual Resolve must succeed before first code edit; fail closed if missing. Tip-close calls typesetter **scripts** silently — never `/format-ready` / `/lint-ready` (ask-first slash UX is human-only).
+- **Tip close** — see **Tip close (silent prep + static floor)** below. After product code is done and before ship: silent format → silent lint → hard static floor → **Prove**. Engine none / NO-GATE → pass without chat nag. Amend after tip-close started → re-enter from silent format (not Prove-only).
+- **Prove** — see **Prove (inline-first)** below. Runs **after** tip-close static floor. Fail closed on red. Gate **new** test files on Fix-in **270** (see Prove). On non-270, do not invent tests to “satisfy Prove.” Do not invent a type **or** a thin wrapper method so a unit test has something to name.
 - **Security** — before claiming done, run a security review on the branch diff (Cursor Task `security-review` when available; else one focused in-thread pass). Medium+ findings: fail closed (fix or stop). **Optional hardening** (defense-in-depth / out-of-tip-scope notes from the scan): see **Optional hardening offer** below — never auto-apply. On **fullmonty**, **disregard** optional hardening entirely (no offer, no apply).
-- Ask only on **real blockers** (missing secrets, unresolved product decisions, verify cannot run). On **fullmonty**, raise **product decisions as early as possible** (prefer entry after thin-brief Read — see Implement mode step 6); do not save them for post-tip or post-scan.
+- Ask only on **real blockers** (missing secrets, unresolved product decisions, typesetter missing, verify cannot run). On **fullmonty**, raise **product decisions as early as possible** (prefer entry after thin-brief Read — see Implement mode step 8); do not save them for post-tip or post-scan.
 
 #### Reuse → Minimal → YAGNI (paired)
 
@@ -449,7 +455,7 @@ Org packs are **T3 conventions** installed into the write root (`devtools/org/**
 
 Optional **product toolkit** for maximal engagement without hard-wiring agent/skill names into DLB. Each write root may publish a **shared** `{writeRoot}/.cursor/agent-implementation-toolkit.json` (DLB, autonomous-dev, and other implementers may Read it). **Missing or empty file is valid** — DLB continues with built-ins (org packs, prove, security, ship/clearance) only. This is **not** Dual Resolve (Dual Resolve finds marketplace/plugin tooling). The catalog is **write-root local** — Read it from the engaged repo.
 
-**When:** every implement entry. **Resolve + `read` engage** with Org pack load (before product-decision / branch steps). **`task` spawn only after** product decisions are settled and the working branch exists when one was required (Implement mode steps 7–9). Brief mode may pre-stamp the **Toolkit** row when write root is known; implement always re-resolves.
+**When:** every implement entry. **Resolve + `read` engage** with Org pack load (before product-decision / branch steps). **`task` spawn only after** product decisions are settled and the working branch exists when one was required (Implement mode steps 8–10). Brief mode may pre-stamp the **Toolkit** row when write root is known; implement always re-resolves.
 
 **Two-tier engage (skills vs Tasks):**
 
@@ -513,7 +519,7 @@ Residual risk (eyes open): allowlist is by **name**; a later PR can change that 
 5. **Select** an entry iff **any** in-scope path matches **any** `when.globs` entry (same glob semantics as Org pack load). Entries with empty/missing `when.globs` are **not** auto-selected.
 6. Stamp thin brief `Toolkit` with selected ids + verbs (even before task spawn), e.g. `foreman (task, deferred); doc-type (read SKILL.md)` or `none (no when.globs hit Paths)` or `none (file missing)`.
 7. **Engage `read` rows now** (deterministic file order): each path must pass **Read path allowlist** + write-root containment. **Read** allowed files. Rejected/missing + `required: true` → stop; else skip. Skills need **only** the write-root catalog — no profile allowlist.
-8. **Engage `task` rows later** (Implement mode step 9 — after product decisions + branch):
+8. **Engage `task` rows later** (Implement mode step 10 — after product decisions + branch):
    - Load profile allowlist. Missing/invalid → if any selected `task` row has `required: true` → **stop** (tell operator to create the allowlist); else skip **all** `task` spawns (keep `read` results) and stamp `task rows skipped — no profile allowlist`.
    - Deduplicate selected `task` rows by `agent` (first wins). Cap spawns at **3** distinct agents per implement run; skip the rest with a chat note (or stop if a skipped row is `required: true`).
    - For each remaining row: agent must be listed in allowlist **and** resolve to an on-disk write-root agent definition under **Read path allowlist** (canonical/symlink-safe). Either miss → skip (or stop if `required: true`).
@@ -525,16 +531,43 @@ Residual risk (eyes open): allowlist is by **name**; a later PR can change that 
 - Dual Resolve the catalog (it is not a plugin/pack id).
 - Hardcode product agent/skill names in this skill or command.
 - Spawn a `task` when the agent is missing from `%USERPROFILE%\.cursor\agent-implementation-toolkit-allowlist.json` **or** lacks a write-root agent definition file.
-- Spawn `task` rows before product decisions / working branch (steps 7–8).
+- Spawn `task` rows before product decisions / working branch (steps 8–9).
 - Read catalog paths outside the **Read path allowlist** (write-root containment alone is insufficient).
 - Treat catalog presence as ambient context when no globs hit Paths.
 - Auto-scaffold `.cursor/agent-implementation-toolkit.json` or the profile allowlist on first `/DLB` (both are opt-in — see pack README).
 
 **Fail closed vs continue:** invalid non-empty JSON or required engage miss → stop; absent / whitespace-empty / soft misses → continue with stamp.
 
+### Tip close (silent prep + static floor)
+
+Tip-close is **DLB’s** format/lint prep + compile/typecheck floor on every implement path (including fullmonty). It runs when product code is believed done, **before** Prove and **before** ship offer / autoland. Typesetter must already be resolved at Implement entry (step 7); re-resolve only if `$typesetter` was lost.
+
+**Locked order:**
+
+1. **Silent format** — per write root with tip dirty files (`-StartPath` when cwd is wrong):
+   - `& "$typesetter\Invoke-TypesetterFormatReady.ps1" -Json` (verify). Prefer `-Json`.
+   - If not ok → `& "$typesetter\Invoke-TypesetterFormatReady.ps1" -Fix -Json` then re-verify. Fail closed on remaining drift or tool error.
+   - `formatEngine` / engine `none` → **pass quietly** (no chat nag).
+2. **Silent lint** — same shape with `Invoke-TypesetterLintReady.ps1` (verify → `-Fix` → re-verify). `noGate: true` / engine `none` → **pass without chat nag** (do not print a per-run NO-GATE lecture). Fail closed on remaining issues or tool error when an engine exists.
+3. **Hard static floor** (stack-agnostic; **all Fix-in lines including 270**):
+   - Splash `.cs` / `.csproj` → `dotnet build` the touched project(s). Exit ≠ 0 → fail closed.
+   - Splash `.ts` / `.tsx` / `.js` / `.jsx` → Read write-root `package.json` `scripts`. Run the **first present** of `typecheck` → `check:types` → `tsc` via `npm run <name>`. **Do not** invent `tsc --noEmit` when no such script exists. **Vitest / `test*` scripts are not a substitute** for this floor (they belong to Prove).
+   - No build/typecheck tooling for this splash → honest one-line pass (e.g. “Static floor: no build/typecheck tooling for this splash”). Do **not** claim “passed build/typecheck.”
+4. **Prove** — see **Prove (inline-first)** below.
+5. **Amend after tip-close started** (format/lint/static/Prove red → fix code) → **re-enter from silent format** (step 1), not Prove-only. Re-resolve typesetter only if the scripts path was lost.
+
+**Do / do not:**
+
+| Do | Do not |
+|----|--------|
+| Call typesetter **scripts** with `-Fix` when verify fails | Invoke `/format-ready` or `/lint-ready` (ask-first human UX) |
+| Run format then lint sequentially | Skip static floor on Fix-in 270 because tests will run |
+| Treat engine none / NO-GATE as quiet pass | Nag NO-GATE every tip; invent Hub typecheck / `tsc --noEmit` |
+| Fail closed when typesetter Dual Resolve missed at entry | Soft-skip missing typesetter (that is for clearance, not tip-close) |
+
 ### Prove (inline-first)
 
-Prove is **DLB’s** test duty on the inline path. Superpowers is pin-only — do not load SP TDD to satisfy Prove. Prove must work **without** SDD — do not wait for a planner to invent tests. Prove must **not** invent product types so a unit test can exist.
+Prove is **DLB’s** test duty on the inline path. It runs **after** tip-close silent prep + hard static floor (compile/typecheck when tooling exists is not optional — including Fix-in **270**). Superpowers is pin-only — do not load SP TDD to satisfy Prove. Prove must work **without** SDD — do not wait for a planner to invent tests. Prove must **not** invent product types so a unit test can exist. Vitest / unit tests do **not** replace the static floor when a typecheck script or `dotnet build` applies.
 
 **Fix-in version gate (Sicon lines — authoritative is card / thin-brief Fix in, not git branch name alone):**
 
@@ -640,7 +673,7 @@ if ($prId -gt 0) {
 
 ### Clearance (fullmonty)
 
-DLB ships primarily as a **Team Marketplace plugin** (`sicon-devops-leading-brief`). Plugins **cannot** declare install-time required deps the way packs’ `requires` do — do **not** assume `pr-clearance` was installed with DLB. Pack dogfood still only **requires** `ado-core`.
+DLB ships primarily as a **Team Marketplace plugin** (`sicon-devops-leading-brief`). Plugins **cannot** declare install-time required deps the way packs’ `requires` do — do **not** assume `pr-clearance` was installed with DLB. Pack dogfood **requires** `ado-core` and `typesetter`.
 
 | Clearance tooling | Behaviour |
 |-------------------|-----------|
@@ -668,7 +701,8 @@ Straight `/DLB <id> implement` skips step 1. **fullmonty** skips this whole sect
 - **ADO reads:** **Dual Resolve** `sicon-ado-core` → `scripts/ado-core.ps1` → verify version ≥ 0.5.0 + WI helpers → `Get-AdoCoreWorkItem -Expand all` + comments (surface `truncated`) → on miss/fail TFS REST → azgit last; no hand-rolled WIT URIs; do not `Read` ado-core.ps1.
 - **Halo:** prefer API; if case id exists and API fails → **navigate the IDE browser to the known ticket URL** (reuse Halo tab, else any tab, else `browser_navigate`). **Do not ask the user to open Halo.** Login prompt → wait; if still login, continue brief without Halo. Yield only if browser tools are missing / navigate throws, or the user declines. Never demote that ask to Enrich after a finished brief.
 - **Brief:** rich **chat** report (findings + Enrich); purge stale `{id}` paths then **trimmed implementer brief file** (no Enrich / Next / Links followed; mandatory **Constitution** **Reuse → Minimal → YAGNI**; single Brief block); stop; user need not say “enrich” — fold-ins update chat + file; Enrich is never a gate option.
-- **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the this-invoke thin brief file** as **sole** card-truth **and initial seed**; clean tree; do not re-paste the fat chat report; do not reuse prior-run briefs; **inline** unless user pinned Superpowers; **Org pack load** then Implement policy (**Reuse → Minimal → YAGNI**) always applies.
+- **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the this-invoke thin brief file** as **sole** card-truth **and initial seed**; clean tree; do not re-paste the fat chat report; do not reuse prior-run briefs; **inline** unless user pinned Superpowers; **Org pack load** + **typesetter Dual Resolve (required)** then Implement policy (**Reuse → Minimal → YAGNI**) always applies. Missing typesetter → stop before coding.
+- **Tip close:** after product code, before ship — silent typesetter format → lint (scripts + `-Fix`; never slash ask UX) → hard static floor (dotnet build / repo `typecheck|check:types|tsc` script when present; else honest pass; Vitest ≠ typecheck) → Prove. Amend → re-enter from format prep. Engine none / NO-GATE → quiet pass (no nag).
 - **Org packs:** lock + `devtools/org/**` → select write-root org loaders by **frontmatter glob ∩ thin-brief Paths**, then force **Read** only that set (plus at most one pack overview); do not auto-install; do not flip `alwaysApply`; fail closed only when a **selected** content path is missing; soft-expect absence or no glob hits is not a tip block.
 - **Hard fence:** do **not** infer, offer, or auto-load Superpowers / SDD / TDD on the inline path — pin only.
 - **Ship:** parallel flag; default **offer only** after implement; on ship intent or offer-accept → **Ship message gate** before commit (nineyards-shaped prose: show drafts; **edits** or **`go`**; no AskQuestion); never land ordinary ship with an unconfirmed message. **`fullmonty`:** implement + ship **autoland** (no Enrich stop, no ship offer, no message gate — land as if **`go`**); product decisions **early** (before first edit when visible); **disregard** security broaden offers; when clearance tooling resolves → **drive `/pr-clearance` to quiet** (or hard-stop finalize) before claiming ship-complete; else **safe fallback** (warn + skip — see **Clearance (fullmonty)**; plugins cannot declare clearance as a required dep). **Reuse an open PR for the branch** via `Resolve-AdoCorePullRequestId -ApiBase -SourceBranch` (Ship ado snippet; or `Get-AdoCoreOpenPullRequestsForBranch` with explicit 0 / 1 / >1 — never silently pick the first when >1) — do not create a duplicate; **ADO PR must link the DLB work-item id** (prefer `-WorkItemIds` on create; else `Link-AdoCoreWorkItemToPullRequest -Endpoints -WitApiBase`) (fail closed); also link related WIs from the card when present (soft-fail); ordinary ship prefers `/pr-clearance` when available.

@@ -382,6 +382,24 @@ Assert-True (Test-IsCodeAntMetaThread -Thread $metaStatusEmoji) 'emoji Review St
 Assert-True (Test-IsCodeAntMetaThread -Thread $metaGate) 'Quality Gate is meta'
 Assert-True (Test-IsCodeAntMetaThread -Thread $metaGateEmoji) 'emoji Quality Gate is meta'
 Assert-True (Test-IsCodeAntMetaThread -Thread $metaNitpicks) 'Nitpicks is meta'
+$metaNitpicksBadge = [pscustomobject]@{
+    id       = 314
+    status   = 'active'
+    comments = @([pscustomobject]@{
+            id      = 1
+            author  = $codeAntAuthor
+            content = ("## <a href=`"https://codeant.ai/`" title=`"CodeAnt AI`"><img src=`"https://example.invalid/badge.svg`" alt=`"CodeAnt`" /></a>&nbsp; CodeAnt Nitpicks`n`n#### 1. Pack dogfood requires both packs.`n`nComment mismatch " + [char]0x00B7 + " [``contrib/devops-leading-brief/pack.json:8``](https://example.invalid/pack.json)")
+        })
+}
+Assert-True (Test-IsCodeAntMetaThread -Thread $metaNitpicksBadge) 'badge Nitpicks heading is meta'
+$badgeNitpicks = @(Get-CodeAntNitpickFindingsFromThreads -Threads @($metaNitpicksBadge) -ActiveOnly)
+Assert-True ($badgeNitpicks.Count -eq 1) 'badge Nitpicks heading yields the suggestion'
+if ($badgeNitpicks.Count -eq 1) {
+    Assert-True ($badgeNitpicks[0].Path -eq '/contrib/devops-leading-brief/pack.json') 'badge nitpick Path'
+    Assert-True ($badgeNitpicks[0].Line -eq '8') 'badge nitpick Line'
+    Assert-True ($badgeNitpicks[0].Category -eq 'Comment mismatch') 'badge nitpick Category'
+    Assert-True ($badgeNitpicks[0].Source -eq 'nitpick') 'badge nitpick Source'
+}
 Assert-True (Test-IsCodeAntMetaThread -Thread $metaPrRisk) 'PR Risk is meta'
 Assert-True (-not (Test-IsCodeAntMetaThread -Thread $kickThread)) 'kick is not meta'
 Assert-True (-not (Test-IsCodeAntMetaThread -Thread $fileThread)) 'file thread is not meta'

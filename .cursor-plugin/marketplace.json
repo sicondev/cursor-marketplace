@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.41"
+                     "version":  "0.1.42"
                  },
     "plugins":  [
                     {
@@ -57,7 +57,7 @@
                     {
                         "name":  "sicon-devops-leading-brief",
                         "source":  "./plugins/sicon-devops-leading-brief",
-                        "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance"
+                        "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); typesetter required; tip-close silent format+lint + hard static floor then Prove; ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance"
                     },
                     {
                         "name":  "sicon-ado-core",
