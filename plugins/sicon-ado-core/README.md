@@ -12,6 +12,7 @@ ADO Core owns generic operations:
 - Query, resolve, and create pull requests
 - Post general PR discussion threads (`New-AdoCorePullRequestThread`)
 - List PR discussion threads, reply without changing status, and set thread status
+- Add or update a PR reviewer (`Set-AdoCorePullRequestReviewer -ReviewType Required|Optional`, default Required)
 - Build PR web URLs
 - Resolve authenticated-user metadata
 - Get work items and comments

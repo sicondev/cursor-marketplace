@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
-$script:AdoCoreLibraryVersion = [version]'0.8.0'
+$script:AdoCoreLibraryVersion = [version]'0.8.1'
 
 function Get-AdoCoreLibraryVersion {
     return $script:AdoCoreLibraryVersion
@@ -1161,6 +1161,97 @@ function Set-AdoCorePullRequestThreadStatus {
     $body = @{ status = (ConvertTo-AdoCoreThreadStatusCode -Status $Status) } | ConvertTo-Json
     Invoke-RestMethod -Uri $uri -Method Patch -Body $body `
         -ContentType 'application/json' -UseDefaultCredentials | Out-Null
+}
+
+function Resolve-AdoCoreGitApiBaseValue {
+    param(
+        [string]$WorkspaceRoot = '',
+        [string]$ApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($ApiBase)) {
+        Assert-AdoCoreTrustedApiBase -ApiBase $ApiBase
+        return $ApiBase.TrimEnd('/')
+    }
+
+    $endpoints = Resolve-AdoCoreEndpoints -WorkspaceRoot $WorkspaceRoot -Collection $Collection `
+        -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $endpoints.ApiBase
+    return [string]$endpoints.ApiBase
+}
+
+function Set-AdoCorePullRequestReviewer {
+    <#
+    .SYNOPSIS
+      Adds or updates a pull-request reviewer (Required or Optional).
+    .DESCRIPTION
+      Generic ADO REST helper — PUT reviewers/{reviewerId}. Callers own which identity
+      GUID to use. -ReviewType maps to ADO isRequired today (Required → true, Optional → false)
+      and can grow with future preference values without a new switch. Default is Required.
+      Does not encode product/team policy. To inspect existing reviewers, use
+      Get-AdoCorePullRequest and read .reviewers with null-safe property checks
+      (isRequired may be absent on optional entries).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$PullRequestId,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [string]$ReviewerId,
+
+        [ValidateSet('Required', 'Optional')]
+        [string]$ReviewType = 'Required',
+
+        [string]$WorkspaceRoot = '',
+        [string]$ApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $base = Resolve-AdoCoreGitApiBaseValue -WorkspaceRoot $WorkspaceRoot -ApiBase $ApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base
+
+    $isRequired = ($ReviewType -eq 'Required')
+    $reviewerSegment = ConvertTo-AdoCoreUriPathSegment -Value $ReviewerId.Trim() -Name 'ReviewerId'
+    $uri = "$base/pullRequests/$PullRequestId/reviewers/$reviewerSegment`?api-version=7.0"
+    $body = @{
+        id         = $ReviewerId.Trim()
+        isRequired = [bool]$isRequired
+    } | ConvertTo-Json -Compress
+
+    $response = Invoke-RestMethod -Uri $uri -Method Put -Body $body `
+        -ContentType 'application/json' -UseDefaultCredentials
+
+    $displayName = $null
+    if ($response -and ($response.PSObject.Properties.Name -contains 'displayName')) {
+        $displayName = [string]$response.displayName
+    }
+    $responseIsRequired = $isRequired
+    if ($response -and ($response.PSObject.Properties.Name -contains 'isRequired')) {
+        $responseIsRequired = [bool]$response.isRequired
+    }
+    $responseId = $ReviewerId.Trim()
+    if ($response -and ($response.PSObject.Properties.Name -contains 'id') -and $response.id) {
+        $responseId = [string]$response.id
+    }
+
+    $responseReviewType = if ($responseIsRequired) { 'Required' } else { 'Optional' }
+
+    return [pscustomobject]@{
+        Id            = $responseId
+        DisplayName   = $displayName
+        ReviewType    = $responseReviewType
+        PullRequestId = $PullRequestId
+    }
 }
 
 function Get-AdoCoreGitRepositoryMetadata {
