@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.42"
+                     "version":  "0.1.43"
                  },
     "plugins":  [
                     {
@@ -60,11 +60,6 @@
                         "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); typesetter required; tip-close silent format+lint + hard static floor then Prove; ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance"
                     },
                     {
-                        "name":  "sicon-ado-core",
-                        "source":  "./plugins/sicon-ado-core",
-                        "description":  "Shared Azure DevOps Git, pull-request, and work-item library for other Sicon plugins (no slash command)"
-                    },
-                    {
                         "name":  "sicon-codeant-triage",
                         "source":  "./plugins/sicon-codeant-triage",
                         "description":  "Triage CodeAnt comments on Azure DevOps pull requests, and scan for anti-patterns you have saved locally"
@@ -73,6 +68,11 @@
                         "name":  "sicon-pr-clearance",
                         "source":  "./plugins/sicon-pr-clearance",
                         "description":  "Drive an Azure DevOps pull request to review-quiet via Policy, Human, and configured review tools"
+                    },
+                    {
+                        "name":  "sicon-ado-core",
+                        "source":  "./plugins/sicon-ado-core",
+                        "description":  "Shared Azure DevOps Git, pull-request, work-item, and build library for other Sicon plugins (no slash command)"
                     }
                 ]
 }

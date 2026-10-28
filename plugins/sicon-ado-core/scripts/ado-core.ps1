@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
-$script:AdoCoreLibraryVersion = [version]'0.7.0'
+$script:AdoCoreLibraryVersion = [version]'0.8.0'
 
 function Get-AdoCoreLibraryVersion {
     return $script:AdoCoreLibraryVersion
@@ -268,6 +268,82 @@ function Resolve-AdoCoreWitApiBaseValue {
     return [string]$resolved.WitApiBase
 }
 
+function Get-AdoCoreBuildApiBase {
+    param(
+        [string]$WorkspaceRoot = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    if (-not $ServerUrl -or -not $Collection -or -not $Project) {
+        $defaults = Get-AdoCoreDefaultsFromGitRemote -WorkspaceRoot $WorkspaceRoot
+        if (-not $ServerUrl) { $ServerUrl = $defaults.ServerUrl }
+        if (-not $Collection) { $Collection = $defaults.Collection }
+        if (-not $Project) { $Project = $defaults.Project }
+        if (-not $Repository) { $Repository = $defaults.Repository }
+    }
+    elseif (-not $Repository -and $WorkspaceRoot) {
+        try {
+            $defaults = Get-AdoCoreDefaultsFromGitRemote -WorkspaceRoot $WorkspaceRoot
+            if (-not $Repository) { $Repository = $defaults.Repository }
+        }
+        catch {
+            # Repository / git ApiBase are optional for Build URL construction.
+        }
+    }
+
+    $ServerUrl = Normalize-AdoCoreServerUrl -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedServerUrl -ServerUrl $ServerUrl
+    if ([string]::IsNullOrWhiteSpace($Collection)) {
+        throw 'ADO Collection is required for Build.'
+    }
+    if ([string]::IsNullOrWhiteSpace($Project)) {
+        throw 'ADO Project is required for Build.'
+    }
+
+    $endpoints = @{
+        ServerUrl  = $ServerUrl
+        Collection = $Collection
+        Project    = $Project
+        Repository = $Repository
+        ApiBase    = $null
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Repository)) {
+        $endpoints.ApiBase = Get-AdoCoreGitApiBase -ServerUrl $ServerUrl -Collection $Collection `
+            -Project $Project -Repository $Repository
+    }
+
+    $base = Normalize-AdoCoreServerUrl -ServerUrl $ServerUrl
+    $collectionSegment = ConvertTo-AdoCoreUriPathSegment -Value $Collection -Name 'Collection'
+    $projectSegment = ConvertTo-AdoCoreUriPathSegment -Value $Project -Name 'Project'
+    return @{
+        Endpoints    = $endpoints
+        BuildApiBase = "$base/tfs/$collectionSegment/$projectSegment/_apis/build"
+    }
+}
+
+function Resolve-AdoCoreBuildApiBaseValue {
+    param(
+        [string]$WorkspaceRoot = '',
+        [string]$BuildApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($BuildApiBase)) {
+        Assert-AdoCoreTrustedApiBase -ApiBase $BuildApiBase -Name 'BuildApiBase'
+        return $BuildApiBase.TrimEnd('/')
+    }
+
+    $resolved = Get-AdoCoreBuildApiBase -WorkspaceRoot $WorkspaceRoot -Collection $Collection `
+        -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    return [string]$resolved.BuildApiBase
+}
+
 function Get-AdoCoreWorkItem {
     <#
     .SYNOPSIS
@@ -297,6 +373,151 @@ function Get-AdoCoreWorkItem {
     }
     $uri = "$base/workitems/$WorkItemId`?$query"
     return Invoke-RestMethod -Uri $uri -Method Get -UseDefaultCredentials
+}
+
+function Get-AdoCoreWorkItems {
+    <#
+    .SYNOPSIS
+      GET work items by ids (batch, max 200). Prefer this over hand-rolled URIs.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateNotNullOrEmpty()]
+        [int[]]$WorkItemIds,
+
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [string]$Expand = '',
+        [ValidateSet('', 'Fail', 'Omit')]
+        [string]$ErrorPolicy = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $ids = @($WorkItemIds | Where-Object { $_ -gt 0 } | Select-Object -Unique)
+    if ($ids.Count -eq 0) {
+        throw 'WorkItemIds must contain at least one positive id.'
+    }
+    if ($ids.Count -gt 200) {
+        throw "WorkItemIds exceeds ADO batch limit of 200 (got $($ids.Count))."
+    }
+
+    $base = Resolve-AdoCoreWitApiBaseValue -WorkspaceRoot $WorkspaceRoot -WitApiBase $WitApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'WitApiBase'
+
+    $queryParts = @(
+        "ids=$([string]::Join(',', $ids))",
+        'api-version=7.0'
+    )
+    if (-not [string]::IsNullOrWhiteSpace($Expand)) {
+        $queryParts = @("`$expand=$([uri]::EscapeDataString($Expand))") + $queryParts
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ErrorPolicy)) {
+        $queryParts += "errorPolicy=$([uri]::EscapeDataString($ErrorPolicy))"
+    }
+
+    $uri = "$base/workitems?$([string]::Join('&', $queryParts))"
+    $response = Invoke-RestMethod -Uri $uri -Method Get -UseDefaultCredentials
+    $items = @()
+    if ($response -and ($response.PSObject.Properties.Name -contains 'value') -and $response.value) {
+        $items = @($response.value)
+    }
+    return [pscustomobject]@{
+        count     = $items.Count
+        workItems = $items
+    }
+}
+
+function Get-AdoCoreWorkItemRevisions {
+    <#
+    .SYNOPSIS
+      GET work-item revisions via WIT REST (paged, bounded). Prefer this over hand-rolled URIs.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$WorkItemId,
+
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [string]$Expand = '',
+        [ValidateRange(1, 5000)]
+        [int]$MaxRevisions = 500,
+        [ValidateRange(1, 200)]
+        [int]$PageSize = 200,
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $base = Resolve-AdoCoreWitApiBaseValue -WorkspaceRoot $WorkspaceRoot -WitApiBase $WitApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'WitApiBase'
+
+    $revisions = New-Object 'System.Collections.Generic.List[object]'
+    $truncated = $false
+    $skip = 0
+    $maxPages = 40
+    $pageCount = 0
+    do {
+        if ($pageCount -ge $maxPages) {
+            $truncated = $true
+            break
+        }
+        $pageCount++
+
+        $remaining = $MaxRevisions - $revisions.Count
+        if ($remaining -le 0) {
+            $truncated = $true
+            break
+        }
+        $top = [Math]::Min($PageSize, $remaining)
+        $queryParts = @(
+            "`$top=$top",
+            "`$skip=$skip",
+            'api-version=7.0'
+        )
+        if (-not [string]::IsNullOrWhiteSpace($Expand)) {
+            $queryParts = @("`$expand=$([uri]::EscapeDataString($Expand))") + $queryParts
+        }
+        $uri = "$base/workitems/$WorkItemId/revisions?$([string]::Join('&', $queryParts))"
+        $response = Invoke-RestMethod -Uri $uri -Method Get -UseDefaultCredentials
+        $page = @()
+        if ($response -and ($response.PSObject.Properties.Name -contains 'value') -and $response.value) {
+            $page = @($response.value)
+        }
+
+        if ($page.Count -eq 0) {
+            break
+        }
+
+        foreach ($item in $page) {
+            if ($revisions.Count -ge $MaxRevisions) {
+                $truncated = $true
+                break
+            }
+            [void]$revisions.Add($item)
+        }
+
+        if ($truncated) {
+            break
+        }
+
+        $skip += $page.Count
+        if ($page.Count -lt $top) {
+            break
+        }
+    } while ($true)
+
+    return [pscustomobject]@{
+        count      = $revisions.Count
+        revisions  = @($revisions.ToArray())
+        truncated  = $truncated
+    }
 }
 
 function Get-AdoCoreWorkItemComments {
@@ -371,6 +592,165 @@ function Get-AdoCoreWorkItemComments {
         count     = $comments.Count
         comments  = @($comments.ToArray())
         truncated = $truncated
+    }
+}
+
+function Get-AdoCoreBuildDefinition {
+    <#
+    .SYNOPSIS
+      GET a build definition by id, or resolve by exact name (case-insensitive). Prefer this over hand-rolled URIs.
+    #>
+    param(
+        [ValidateRange(0, [int]::MaxValue)]
+        [int]$DefinitionId = 0,
+
+        [string]$Name = '',
+        [string]$WorkspaceRoot = '',
+        [string]$BuildApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $hasId = $DefinitionId -gt 0
+    $hasName = -not [string]::IsNullOrWhiteSpace($Name)
+    if (-not $hasId -and -not $hasName) {
+        throw 'Provide -DefinitionId and/or -Name.'
+    }
+
+    $base = Resolve-AdoCoreBuildApiBaseValue -WorkspaceRoot $WorkspaceRoot -BuildApiBase $BuildApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'BuildApiBase'
+
+    if ($hasId) {
+        $uri = "$base/definitions/$DefinitionId`?api-version=7.0"
+        return Invoke-RestMethod -Uri $uri -Method Get -UseDefaultCredentials
+    }
+
+    $encodedName = [uri]::EscapeDataString($Name.Trim())
+    $baseListUri = "$base/definitions?name=$encodedName&api-version=7.0"
+    $candidates = New-Object 'System.Collections.Generic.List[object]'
+    $continuationToken = $null
+    $maxPages = 40
+    $pageCount = 0
+    do {
+        if ($pageCount -ge $maxPages) {
+            throw "Build definition name lookup for '$Name' exceeded $maxPages pages. Pass -DefinitionId."
+        }
+        $pageCount++
+
+        $listUri = $baseListUri
+        if ($continuationToken) {
+            $listUri = "$listUri&continuationToken=$([uri]::EscapeDataString($continuationToken))"
+        }
+
+        $webResponse = Invoke-WebRequest -Uri $listUri -Method Get -UseDefaultCredentials -UseBasicParsing
+        $listResponse = $webResponse.Content | ConvertFrom-Json
+        $page = @()
+        if ($listResponse -and ($listResponse.PSObject.Properties.Name -contains 'value') -and $listResponse.value) {
+            $page = @($listResponse.value)
+        }
+        foreach ($item in $page) {
+            [void]$candidates.Add($item)
+        }
+
+        $continuationToken = Get-AdoCoreContinuationToken -Response $webResponse
+    } while ($continuationToken)
+
+    $exact = @($candidates | Where-Object {
+            $_.PSObject.Properties.Name -contains 'name' -and
+            [string]::Equals([string]$_.name, $Name.Trim(), [StringComparison]::OrdinalIgnoreCase)
+        })
+    if ($exact.Count -eq 0) {
+        throw "Build definition not found by name: $Name"
+    }
+    if ($exact.Count -gt 1) {
+        $ids = @($exact | ForEach-Object { $_.id }) -join ', '
+        throw "Multiple build definitions match name '$Name' (ids: $ids). Pass -DefinitionId."
+    }
+
+    $resolvedId = [int]$exact[0].id
+    $uri = "$base/definitions/$resolvedId`?api-version=7.0"
+    return Invoke-RestMethod -Uri $uri -Method Get -UseDefaultCredentials
+}
+
+function Get-AdoCoreBuilds {
+    <#
+    .SYNOPSIS
+      List builds for definition(s) with optional status/result/top/order filters. Prefer this over hand-rolled URIs.
+    #>
+    param(
+        [int[]]$DefinitionIds = @(),
+
+        [string]$WorkspaceRoot = '',
+        [string]$BuildApiBase = '',
+        [string]$StatusFilter = '',
+        [string]$ResultFilter = '',
+        [ValidateSet(
+            '',
+            'finishTimeDescending',
+            'finishTimeAscending',
+            'queueTimeDescending',
+            'queueTimeAscending',
+            'startTimeDescending',
+            'startTimeAscending'
+        )]
+        [string]$QueryOrder = 'finishTimeDescending',
+        [ValidateRange(1, 5000)]
+        [int]$Top = 50,
+        [string]$BranchName = '',
+        [string]$MinTime = '',
+        [string]$MaxTime = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $definitionIdList = @($DefinitionIds | Where-Object { $_ -gt 0 } | Select-Object -Unique)
+    if ($definitionIdList.Count -eq 0) {
+        throw 'DefinitionIds must contain at least one positive definition id.'
+    }
+
+    $base = Resolve-AdoCoreBuildApiBaseValue -WorkspaceRoot $WorkspaceRoot -BuildApiBase $BuildApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'BuildApiBase'
+
+    $queryParts = @(
+        "definitions=$([string]::Join(',', $definitionIdList))",
+        "`$top=$Top",
+        'api-version=7.0'
+    )
+    if (-not [string]::IsNullOrWhiteSpace($QueryOrder)) {
+        $queryParts += "queryOrder=$([uri]::EscapeDataString($QueryOrder))"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($StatusFilter)) {
+        $queryParts += "statusFilter=$([uri]::EscapeDataString($StatusFilter))"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ResultFilter)) {
+        $queryParts += "resultFilter=$([uri]::EscapeDataString($ResultFilter))"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($BranchName)) {
+        $queryParts += "branchName=$([uri]::EscapeDataString($BranchName))"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($MinTime)) {
+        $queryParts += "minTime=$([uri]::EscapeDataString($MinTime))"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($MaxTime)) {
+        $queryParts += "maxTime=$([uri]::EscapeDataString($MaxTime))"
+    }
+
+    $uri = "$base/builds?$([string]::Join('&', $queryParts))"
+    $response = Invoke-RestMethod -Uri $uri -Method Get -UseDefaultCredentials
+    $builds = @()
+    if ($response -and ($response.PSObject.Properties.Name -contains 'value') -and $response.value) {
+        $builds = @($response.value)
+    }
+
+    return [pscustomobject]@{
+        count  = $builds.Count
+        builds = $builds
     }
 }
 

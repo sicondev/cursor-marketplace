@@ -1,6 +1,6 @@
 # Sicon ADO Core
 
-Shared Azure DevOps Git, pull-request, and work-item library for other Sicon plugins. There is no slash command.
+Shared Azure DevOps Git, pull-request, work-item, and build library for other Sicon plugins. There is no slash command.
 
 Install from the Sicon Team Marketplace, then enable the plugin.
 
@@ -15,12 +15,14 @@ ADO Core owns generic operations:
 - Build PR web URLs
 - Resolve authenticated-user metadata
 - Get work items and comments
+- Batch-get work items and get work-item revisions
 - Create and update work items (`New-AdoCoreWorkItem` / `Update-AdoCoreWorkItem`)
 - Link work items to pull requests; optionally commits via `-LinkCommits`
 - Attach files to work items
+- Resolve build definitions and list builds
 - Escape and execute Wiql queries
 
-It does not own Flyby lifecycle behavior, Nineyards message gating, branch selection, card wording, or agent commands.
+It does not own Flyby lifecycle behavior, Nineyards message gating, branch selection, card wording, Approvals board policy, or agent commands.
 
 ## Usage
 
