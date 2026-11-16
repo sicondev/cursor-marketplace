@@ -1,7 +1,56 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
-$script:AdoCoreLibraryVersion = [version]'0.8.1'
+$script:AdoCoreLibraryVersion = [version]'0.9.0'
+
+# System / derived fields never copied by Clone-AdoCoreWorkItem.
+$script:AdoCoreCloneAlwaysSkipFieldRefNames = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase)
+@(
+    'System.Id'
+    'System.Rev'
+    'System.RevisedDate'
+    'System.Watermark'
+    'System.CreatedBy'
+    'System.CreatedDate'
+    'System.ChangedBy'
+    'System.ChangedDate'
+    'System.AuthorizedAs'
+    'System.AuthorizedDate'
+    'System.PersonId'
+    'System.CommentCount'
+    'System.AreaId'
+    'System.IterationId'
+    'System.NodeName'
+    'System.TeamProject'
+    'System.WorkItemType'
+    'System.History'
+    'System.Parent'
+    'System.ExternalLinkCount'
+    'System.RelatedLinkCount'
+    'System.RemoteLinkCount'
+    'System.HyperLinkCount'
+    'System.AttachedFileCount'
+    'Microsoft.VSTS.Common.ActivatedBy'
+    'Microsoft.VSTS.Common.ActivatedDate'
+    'Microsoft.VSTS.Common.StateChangeDate'
+    'Microsoft.VSTS.Common.ResolvedBy'
+    'Microsoft.VSTS.Common.ResolvedDate'
+    'Microsoft.VSTS.Common.ClosedBy'
+    'Microsoft.VSTS.Common.ClosedDate'
+    'Microsoft.VSTS.Common.ResolvedReason'
+) | ForEach-Object { [void]$script:AdoCoreCloneAlwaysSkipFieldRefNames.Add($_) }
+
+# Version / build fields: blank on clone by default; -Fields may still set them.
+$script:AdoCoreCloneVersionBuildFieldRefNames = [System.Collections.Generic.HashSet[string]]::new(
+    [System.StringComparer]::OrdinalIgnoreCase)
+@(
+    'Microsoft.VSTS.Build.FoundIn'
+    'Microsoft.VSTS.Build.IntegrationBuild'
+    'Custom.FixBuild'
+    'Custom.Plannedreleaseversion'
+    'Custom.ReleaseCandidateBuild'
+) | ForEach-Object { [void]$script:AdoCoreCloneVersionBuildFieldRefNames.Add($_) }
 
 function Get-AdoCoreLibraryVersion {
     return $script:AdoCoreLibraryVersion
@@ -109,6 +158,35 @@ function Assert-AdoCoreTrustedApiBase {
     }
 }
 
+function Assert-AdoCoreTrustedDownloadUrl {
+    <#
+    .SYNOPSIS
+      Validate an absolute HTTPS URL against the trusted ADO host allowlist before authenticated download.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Url,
+        [string]$Name = 'DownloadUrl'
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Url)) {
+        throw "ADO $Name is empty."
+    }
+
+    $uri = $null
+    if (-not [Uri]::TryCreate($Url.Trim(), [UriKind]::Absolute, [ref]$uri)) {
+        throw "ADO $Name is not a valid absolute URI: $Url"
+    }
+    if ($uri.Scheme -ne 'https') {
+        throw "ADO $Name must use HTTPS (got '$($uri.Scheme)'): $Url"
+    }
+    $trustedHosts = @('tfs.sicon.co.uk')
+    if ($trustedHosts -notcontains $uri.Host) {
+        $allowed = $trustedHosts -join ', '
+        throw "ADO $Name host '$($uri.Host)' is not trusted. Allowed: $allowed"
+    }
+}
+
 function ConvertTo-AdoCoreUriPathSegment {
     param(
         [Parameter(Mandatory = $true)]
@@ -124,6 +202,43 @@ function ConvertTo-AdoCoreUriPathSegment {
         throw "ADO $Name contains an invalid path delimiter: $Value"
     }
     return [Uri]::EscapeDataString($Value)
+}
+
+function ConvertTo-AdoCoreHtmlText {
+    <#
+    .SYNOPSIS
+      HTML-encode text before embedding in a work-item discussion comment (private helper).
+    #>
+    param([AllowNull()][string]$Value)
+
+    if ($null -eq $Value) { return '' }
+    return [System.Net.WebUtility]::HtmlEncode($Value)
+}
+
+function ConvertTo-AdoCoreUtf8RequestBody {
+    <#
+    .SYNOPSIS
+      Encode a JSON string as UTF-8 bytes for Invoke-RestMethod (Windows PowerShell string bodies mangle £/non-ASCII).
+    .NOTES
+      Returns a true byte[] (unary comma) so PowerShell does not unwrap it to Object[].
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Json
+    )
+
+    return , [System.Text.Encoding]::UTF8.GetBytes($Json)
+}
+
+function Get-AdoCoreJsonContentType {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$MediaType
+    )
+
+    $trimmed = $MediaType.Trim()
+    if ($trimmed -match '(?i)charset=') { return $trimmed }
+    return "$trimmed; charset=utf-8"
 }
 
 function Resolve-AdoCoreCollectionEndpoint {
@@ -595,6 +710,41 @@ function Get-AdoCoreWorkItemComments {
     }
 }
 
+function Add-AdoCoreWorkItemComment {
+    <#
+    .SYNOPSIS
+      POST a work-item discussion comment via WIT comments API. Prefer this over hand-rolled URIs.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$WorkItemId,
+
+        [Parameter(Mandatory = $true)]
+        [string]$Text,
+
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        throw 'Text is required.'
+    }
+
+    $base = Resolve-AdoCoreWitApiBaseValue -WorkspaceRoot $WorkspaceRoot -WitApiBase $WitApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'WitApiBase'
+
+    $uri = "$base/workitems/$WorkItemId/comments?api-version=7.0-preview.3"
+    $body = (@{ text = $Text } | ConvertTo-Json -Compress)
+    return Invoke-RestMethod -Uri $uri -Method Post -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+        -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json') -UseDefaultCredentials
+}
+
 function Get-AdoCoreBuildDefinition {
     <#
     .SYNOPSIS
@@ -947,8 +1097,8 @@ function New-AdoCorePullRequest {
     Assert-AdoCoreTrustedApiBase -ApiBase $endpoints.ApiBase
     $uri = "$($endpoints.ApiBase)/pullrequests?api-version=7.0"
     $body = $bodyObject | ConvertTo-Json -Depth 4 -Compress
-    $pullRequest = Invoke-RestMethod -Uri $uri -Method Post -Body $body `
-        -ContentType 'application/json' -UseDefaultCredentials
+    $pullRequest = Invoke-RestMethod -Uri $uri -Method Post -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+        -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json') -UseDefaultCredentials
     $pullRequestId = [int]$pullRequest.pullRequestId
 
     return [pscustomobject]@{
@@ -1000,8 +1150,8 @@ function New-AdoCorePullRequestThread {
         status = 1
     } | ConvertTo-Json -Depth 5
 
-    $response = Invoke-RestMethod -Uri $uri -Method Post -Body $body `
-        -ContentType 'application/json' -UseDefaultCredentials
+    $response = Invoke-RestMethod -Uri $uri -Method Post -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+        -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json') -UseDefaultCredentials
 
     $threadId = [int]$response.id
     $commentId = [int]$response.comments[0].id
@@ -1117,8 +1267,8 @@ function Add-AdoCorePullRequestThreadComment {
         commentType     = 1
     } | ConvertTo-Json
 
-    $posted = Invoke-RestMethod -Uri $uri -Method Post -Body $body `
-        -ContentType 'application/json' -UseDefaultCredentials
+    $posted = Invoke-RestMethod -Uri $uri -Method Post -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+        -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json') -UseDefaultCredentials
 
     return [pscustomobject]@{
         PullRequestId = $PullRequestId
@@ -1159,8 +1309,8 @@ function Set-AdoCorePullRequestThreadStatus {
 
     $uri = "$($endpoints.ApiBase)/pullRequests/$PullRequestId/threads/$ThreadId`?api-version=7.0"
     $body = @{ status = (ConvertTo-AdoCoreThreadStatusCode -Status $Status) } | ConvertTo-Json
-    Invoke-RestMethod -Uri $uri -Method Patch -Body $body `
-        -ContentType 'application/json' -UseDefaultCredentials | Out-Null
+    Invoke-RestMethod -Uri $uri -Method Patch -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+        -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json') -UseDefaultCredentials | Out-Null
 }
 
 function Resolve-AdoCoreGitApiBaseValue {
@@ -1228,8 +1378,8 @@ function Set-AdoCorePullRequestReviewer {
         isRequired = [bool]$isRequired
     } | ConvertTo-Json -Compress
 
-    $response = Invoke-RestMethod -Uri $uri -Method Put -Body $body `
-        -ContentType 'application/json' -UseDefaultCredentials
+    $response = Invoke-RestMethod -Uri $uri -Method Put -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+        -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json') -UseDefaultCredentials
 
     $displayName = $null
     if ($response -and ($response.PSObject.Properties.Name -contains 'displayName')) {
@@ -1405,8 +1555,8 @@ function Add-AdoCoreWorkItemArtifactLinks {
     $operationArray = [object[]]$operations
     $body = ConvertTo-Json -InputObject $operationArray -Depth 6 -Compress
     try {
-        Invoke-RestMethod -Uri $uri -Method Patch -Body $body `
-            -ContentType 'application/json-patch+json' -UseDefaultCredentials | Out-Null
+        Invoke-RestMethod -Uri $uri -Method Patch -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+            -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json-patch+json') -UseDefaultCredentials | Out-Null
         return $true
     }
     catch {
@@ -1470,7 +1620,7 @@ function Add-AdoCoreWorkItemAttachments {
         }
         [void]$resolvedPaths.Add($path)
     }
-    if ($resolvedPaths.Count -eq 0) { return $true }
+    if ($resolvedPaths.Count -eq 0) { return 0 }
 
     $existingUri = "$WitApiBase/workitems/$WorkItemId`?`$expand=relations&api-version=7.0"
     $workItem = Invoke-RestMethod -Uri $existingUri -Method Get -UseDefaultCredentials
@@ -1517,14 +1667,14 @@ function Add-AdoCoreWorkItemAttachments {
             })
     }
 
-    if ($operations.Count -eq 0) { return $true }
+    if ($operations.Count -eq 0) { return 0 }
 
     $operationArray = [object[]]$operations.ToArray()
     $body = ConvertTo-Json -InputObject $operationArray -Depth 6 -Compress
     $patchUri = "$WitApiBase/workitems/$WorkItemId`?api-version=7.0"
-    Invoke-RestMethod -Uri $patchUri -Method Patch -Body $body `
-        -ContentType 'application/json-patch+json' -UseDefaultCredentials | Out-Null
-    return $true
+    Invoke-RestMethod -Uri $patchUri -Method Patch -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+        -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json-patch+json') -UseDefaultCredentials | Out-Null
+    return $operations.Count
 }
 
 function Add-AdoCoreWorkItemAttachment {
@@ -1559,6 +1709,107 @@ function ConvertTo-AdoCoreWorkItemFieldRefName {
         throw "Unsupported work item patch path '$trimmed'. Use a field ref name (e.g. System.Title) or /fields/<ref>."
     }
     return $trimmed
+}
+
+function Test-AdoCoreWorkItemFieldValueEmpty {
+    param($Value)
+
+    if ($null -eq $Value) { return $true }
+    if ($Value -is [string] -and [string]::IsNullOrWhiteSpace($Value)) { return $true }
+    return $false
+}
+
+function ConvertTo-AdoCoreWorkItemFieldPatchValue {
+    <#
+    .SYNOPSIS
+      Normalize a GET field value for JSON Patch create/update (identity objects → AssignedTo string).
+    #>
+    param($Value)
+
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [string] -or $Value -is [bool] -or $Value -is [byte] -or $Value -is [int16] -or
+        $Value -is [uint16] -or $Value -is [int] -or $Value -is [uint32] -or $Value -is [long] -or
+        $Value -is [uint64] -or $Value -is [float] -or $Value -is [double] -or $Value -is [decimal] -or
+        $Value -is [datetime]) {
+        return $Value
+    }
+
+    $names = @()
+    if ($Value -is [System.Collections.IDictionary]) {
+        $names = @($Value.Keys | ForEach-Object { [string]$_ })
+    }
+    elseif ($Value -is [System.Management.Automation.PSObject]) {
+        $names = @($Value.PSObject.Properties.Name)
+    }
+
+    if ($names -contains 'uniqueName' -or $names -contains 'displayName' -or $names -contains 'descriptor') {
+        $identity = Get-AdoCoreAssignedToFieldValue -User $Value
+        if ($identity) { return $identity }
+    }
+
+    return $Value
+}
+
+function Test-AdoCoreCloneSourceFieldShouldSkip {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RefName
+    )
+
+    if ($script:AdoCoreCloneAlwaysSkipFieldRefNames.Contains($RefName)) { return $true }
+    if ($RefName.StartsWith('WEF_', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    if ($RefName.StartsWith('System.Board', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    if ($RefName.StartsWith('System.AreaLevel', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    if ($RefName.StartsWith('System.IterationLevel', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    if ($script:AdoCoreCloneVersionBuildFieldRefNames.Contains($RefName)) { return $true }
+    if ($RefName.StartsWith('Microsoft.VSTS.Build.', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    return $false
+}
+
+function New-AdoCoreCloneFieldMapFromSource {
+    <#
+    .SYNOPSIS
+      Build a writable field hashtable for clone create (private helper used by Clone-AdoCoreWorkItem).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        $SourceFields,
+
+        [hashtable]$Overrides = @{}
+    )
+
+    $map = @{}
+    if ($SourceFields) {
+        foreach ($prop in @($SourceFields.PSObject.Properties)) {
+            $refName = [string]$prop.Name
+            if ([string]::IsNullOrWhiteSpace($refName)) { continue }
+            if ($refName -eq 'System.Title') { continue }
+            if (Test-AdoCoreCloneSourceFieldShouldSkip -RefName $refName) { continue }
+            if (Test-AdoCoreWorkItemFieldValueEmpty -Value $prop.Value) { continue }
+            $patchValue = ConvertTo-AdoCoreWorkItemFieldPatchValue -Value $prop.Value
+            if (Test-AdoCoreWorkItemFieldValueEmpty -Value $patchValue) { continue }
+            $map[$refName] = $patchValue
+        }
+    }
+
+    # ADO-like: new clone starts New / New unless overridden.
+    $map['System.State'] = 'New'
+    $map['System.Reason'] = 'New'
+
+    if ($Overrides) {
+        foreach ($key in @($Overrides.Keys)) {
+            $refName = ConvertTo-AdoCoreWorkItemFieldRefName -Field ([string]$key)
+            if ($refName -eq 'System.Title') { continue }
+            $patchValue = ConvertTo-AdoCoreWorkItemFieldPatchValue -Value $Overrides[$key]
+            if ($null -eq $patchValue) {
+                if ($map.ContainsKey($refName)) { [void]$map.Remove($refName) }
+                continue
+            }
+            $map[$refName] = $patchValue
+        }
+    }
+
+    return $map
 }
 
 function New-AdoCoreWorkItem {
@@ -1692,8 +1943,8 @@ function New-AdoCoreWorkItem {
         $body = "[$body]"
     }
 
-    $workItem = Invoke-RestMethod -Uri $uri -Method Post -Body $body `
-        -ContentType 'application/json-patch+json' -UseDefaultCredentials
+    $workItem = Invoke-RestMethod -Uri $uri -Method Post -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+        -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json-patch+json') -UseDefaultCredentials
     $workItemId = [int]$workItem.id
 
     $linkResult = @{
@@ -1811,8 +2062,10 @@ function Update-AdoCoreWorkItem {
         if ($null -eq $Value) { return }
         if ($claimed.ContainsKey($RefName)) { return }
         $claimed[$RefName] = $true
+        # System.Tags: "add" unions with existing tags on ADO; "replace" sets the full string.
+        $op = if ($RefName -eq 'System.Tags') { 'replace' } else { 'add' }
         [void]$patch.Add([pscustomobject]@{
-                op    = 'add'
+                op    = $op
                 path  = "/fields/$RefName"
                 value = $Value
             })
@@ -1856,8 +2109,33 @@ function Update-AdoCoreWorkItem {
         $body = "[$body]"
     }
 
-    $workItem = Invoke-RestMethod -Uri $uri -Method Patch -Body $body `
-        -ContentType 'application/json-patch+json' -UseDefaultCredentials
+    try {
+        $workItem = Invoke-RestMethod -Uri $uri -Method Patch -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+            -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json-patch+json') -UseDefaultCredentials
+    }
+    catch {
+        $message = [string]$_.Exception.Message
+        if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+            $message = "$message $($_.ErrorDetails.Message)"
+        }
+        # Tags field absent: replace fails — retry that op as add.
+        $hasTagsReplace = $false
+        foreach ($op in @($patch)) {
+            if ($op.path -eq '/fields/System.Tags' -and $op.op -eq 'replace') { $hasTagsReplace = $true; break }
+        }
+        if ($hasTagsReplace -and ($message -match 'could not be found|TF401320|does not exist|path')) {
+            foreach ($op in @($patch)) {
+                if ($op.path -eq '/fields/System.Tags') { $op.op = 'add' }
+            }
+            $body = @($patch.ToArray()) | ConvertTo-Json -Depth 5 -Compress
+            if ($patch.Count -eq 1 -and -not $body.StartsWith('[')) { $body = "[$body]" }
+            $workItem = Invoke-RestMethod -Uri $uri -Method Patch -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+                -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json-patch+json') -UseDefaultCredentials
+        }
+        else {
+            throw
+        }
+    }
 
     return [pscustomobject]@{
         WorkItemId   = $WorkItemId
@@ -1866,6 +2144,559 @@ function Update-AdoCoreWorkItem {
         AssignedToMe = $AssignToMe.IsPresent
         Endpoints    = $endpoints
         WitApiBase   = $base
+    }
+}
+
+function ConvertFrom-AdoCoreWorkItemTags {
+    param([string]$Tags)
+
+    $set = New-Object 'System.Collections.Generic.List[string]'
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    if ([string]::IsNullOrWhiteSpace($Tags)) { return @() }
+    foreach ($part in @($Tags -split ';')) {
+        $tag = $part.Trim()
+        if ([string]::IsNullOrWhiteSpace($tag)) { continue }
+        if ($seen.Add($tag)) { [void]$set.Add($tag) }
+    }
+    return @($set.ToArray())
+}
+
+function ConvertTo-AdoCoreWorkItemTags {
+    param([string[]]$Tags)
+
+    $parts = New-Object 'System.Collections.Generic.List[string]'
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($part in @($Tags)) {
+        if ([string]::IsNullOrWhiteSpace($part)) { continue }
+        $tag = $part.Trim()
+        if ($seen.Add($tag)) { [void]$parts.Add($tag) }
+    }
+    return [string]::Join('; ', $parts.ToArray())
+}
+
+function Update-AdoCoreWorkItemTags {
+    <#
+    .SYNOPSIS
+      Add and/or remove work-item tags (GET System.Tags → merge → PATCH). Prefer this for single-tag edits.
+    .DESCRIPTION
+      Idempotent: adding an existing tag or removing a missing tag skips the PATCH when the merged set is unchanged.
+      Provide at least one of -Add or -Remove. For a full tag-set replace, use Update-AdoCoreWorkItem -Fields
+      @{ 'System.Tags' = '...' } instead.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$WorkItemId,
+
+        [string[]]$Add = @(),
+        [string[]]$Remove = @(),
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $addTags = @(ConvertFrom-AdoCoreWorkItemTags -Tags ([string]::Join(';', @($Add))))
+    $removeTags = @(ConvertFrom-AdoCoreWorkItemTags -Tags ([string]::Join(';', @($Remove))))
+    if ($addTags.Count -lt 1 -and $removeTags.Count -lt 1) {
+        throw 'Provide -Add and/or -Remove with at least one non-empty tag.'
+    }
+
+    $existing = Get-AdoCoreWorkItem -WorkItemId $WorkItemId -WorkspaceRoot $WorkspaceRoot `
+        -WitApiBase $WitApiBase -Collection $Collection -Project $Project `
+        -Repository $Repository -ServerUrl $ServerUrl
+    $currentRaw = ''
+    if ($existing.fields -and ($existing.fields.PSObject.Properties.Name -contains 'System.Tags')) {
+        $currentRaw = [string]$existing.fields.'System.Tags'
+    }
+
+    $current = New-Object 'System.Collections.Generic.List[string]'
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($tag in @(ConvertFrom-AdoCoreWorkItemTags -Tags $currentRaw)) {
+        if ($seen.Add($tag)) { [void]$current.Add($tag) }
+    }
+
+    $removeSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($tag in $removeTags) { [void]$removeSet.Add($tag) }
+
+    if ($removeSet.Count -gt 0) {
+        $kept = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($tag in @($current)) {
+            if (-not $removeSet.Contains($tag)) { [void]$kept.Add($tag) }
+        }
+        $current = $kept
+        $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($tag in @($current)) { [void]$seen.Add($tag) }
+    }
+
+    foreach ($tag in $addTags) {
+        if ($seen.Add($tag)) { [void]$current.Add($tag) }
+    }
+
+    $merged = ConvertTo-AdoCoreWorkItemTags -Tags @($current.ToArray())
+
+    $beforeSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($tag in @(ConvertFrom-AdoCoreWorkItemTags -Tags $currentRaw)) { [void]$beforeSet.Add($tag) }
+    $afterSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($tag in @(ConvertFrom-AdoCoreWorkItemTags -Tags $merged)) { [void]$afterSet.Add($tag) }
+    $tagsUnchanged = $beforeSet.SetEquals($afterSet)
+
+    # System.Tags: JSON Patch "add" unions with existing tags on ADO; use "replace" for set semantics.
+    $base = Resolve-AdoCoreWitApiBaseValue -WorkspaceRoot $WorkspaceRoot -WitApiBase $WitApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'WitApiBase'
+    if (-not [string]::IsNullOrWhiteSpace($WitApiBase)) {
+        if ($base -notmatch '^(https?://[^/]+)/tfs/([^/]+)/([^/]+)/_apis/wit') {
+            throw "Unsupported WitApiBase for endpoint derivation: $base"
+        }
+        $endpoints = @{
+            ServerUrl  = $Matches[1]
+            Collection = [Uri]::UnescapeDataString([string]$Matches[2])
+            Project    = [Uri]::UnescapeDataString([string]$Matches[3])
+            Repository = $Repository
+            ApiBase    = $null
+        }
+    }
+    else {
+        $wit = Get-AdoCoreWitApiBase -WorkspaceRoot $WorkspaceRoot -Collection $Collection `
+            -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+        $endpoints = $wit.Endpoints
+        if ($Repository) { $endpoints.Repository = $Repository }
+    }
+
+    if ($tagsUnchanged) {
+        $title = ''
+        if ($existing.fields -and ($existing.fields.PSObject.Properties.Name -contains 'System.Title')) {
+            $title = [string]$existing.fields.'System.Title'
+        }
+        return [pscustomobject]@{
+            WorkItemId = $WorkItemId
+            Title      = $title
+            WebUrl     = (Get-AdoCoreWorkItemWebUrl -WorkItemId $WorkItemId -Endpoints $endpoints)
+            Tags       = $merged
+            TagList    = @(ConvertFrom-AdoCoreWorkItemTags -Tags $merged)
+            Added      = $addTags
+            Removed    = $removeTags
+            Endpoints  = $endpoints
+            WitApiBase = $base
+        }
+    }
+
+    $patch = @(
+        [pscustomobject]@{
+            op    = 'replace'
+            path  = '/fields/System.Tags'
+            value = $merged
+        }
+    )
+    # Empty set: replace with '' clears tags; if Tags was never set, replace can 400 — fall back to add.
+    $uri = "$base/workitems/$WorkItemId`?api-version=7.0"
+    $body = ConvertTo-Json -InputObject $patch -Depth 5 -Compress
+    if (-not $body.StartsWith('[')) { $body = "[$body]" }
+    try {
+        $workItem = Invoke-RestMethod -Uri $uri -Method Patch -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+            -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json-patch+json') -UseDefaultCredentials
+    }
+    catch {
+        $message = [string]$_.Exception.Message
+        if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+            $message = "$message $($_.ErrorDetails.Message)"
+        }
+        if ($message -match 'could not be found|TF401320|does not exist|path') {
+            $patch[0].op = 'add'
+            $body = ConvertTo-Json -InputObject $patch -Depth 5 -Compress
+            if (-not $body.StartsWith('[')) { $body = "[$body]" }
+            $workItem = Invoke-RestMethod -Uri $uri -Method Patch -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+                -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json-patch+json') -UseDefaultCredentials
+        }
+        else {
+            throw
+        }
+    }
+
+    $title = ''
+    if ($workItem.fields -and ($workItem.fields.PSObject.Properties.Name -contains 'System.Title')) {
+        $title = [string]$workItem.fields.'System.Title'
+    }
+    $serverTags = $merged
+    if ($workItem.fields -and ($workItem.fields.PSObject.Properties.Name -contains 'System.Tags')) {
+        $serverTags = [string]$workItem.fields.'System.Tags'
+    }
+
+    return [pscustomobject]@{
+        WorkItemId = $WorkItemId
+        Title      = $title
+        WebUrl     = (Get-AdoCoreWorkItemWebUrl -WorkItemId $WorkItemId -Endpoints $endpoints)
+        Tags       = $serverTags
+        TagList    = @(ConvertFrom-AdoCoreWorkItemTags -Tags $serverTags)
+        Added      = $addTags
+        Removed    = $removeTags
+        Endpoints  = $endpoints
+        WitApiBase = $base
+    }
+}
+
+function Add-AdoCoreWorkItemRelation {
+    <#
+    .SYNOPSIS
+      Add a work-item ↔ work-item relation (default Related). Prefer this over hand-rolled relation patches.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$WorkItemId,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$TargetWorkItemId,
+
+        [string]$LinkType = 'System.LinkTypes.Related',
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = '',
+        [int]$DuplicateRetryCount = 0
+    )
+
+    if ([string]::IsNullOrWhiteSpace($LinkType)) {
+        throw 'LinkType is required.'
+    }
+    if ($WorkItemId -eq $TargetWorkItemId) {
+        throw 'WorkItemId and TargetWorkItemId must differ.'
+    }
+
+    $base = Resolve-AdoCoreWitApiBaseValue -WorkspaceRoot $WorkspaceRoot -WitApiBase $WitApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'WitApiBase'
+
+    $targetUrl = "$base/workitems/$TargetWorkItemId"
+    $existingUri = "$base/workitems/$WorkItemId`?`$expand=relations&api-version=7.0"
+    $existing = Invoke-RestMethod -Uri $existingUri -Method Get -UseDefaultCredentials
+    $existingRelations = if ($existing.PSObject.Properties.Name -contains 'relations') { @($existing.relations) } else { @() }
+    foreach ($relation in $existingRelations) {
+        $relType = if ($relation.rel) { [string]$relation.rel } else { '' }
+        $relUrl = if ($relation.url) { [string]$relation.url } else { '' }
+        if ($relType -eq $LinkType -and $relUrl -and ($relUrl.TrimEnd('/') -ieq $targetUrl.TrimEnd('/'))) {
+            return [pscustomobject]@{
+                WorkItemId       = $WorkItemId
+                TargetWorkItemId = $TargetWorkItemId
+                LinkType         = $LinkType
+                AlreadyExisted   = $true
+                WitApiBase       = $base
+            }
+        }
+    }
+
+    $patch = @(
+        [pscustomobject]@{
+            op    = 'add'
+            path  = '/relations/-'
+            value = [pscustomobject]@{
+                rel = $LinkType
+                url = $targetUrl
+            }
+        }
+    )
+    $body = ConvertTo-Json -InputObject $patch -Depth 6 -Compress
+    $uri = "$base/workitems/$WorkItemId`?api-version=7.0"
+    try {
+        Invoke-RestMethod -Uri $uri -Method Patch -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+            -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json-patch+json') -UseDefaultCredentials | Out-Null
+    }
+    catch {
+        $message = [string]$_.Exception.Message
+        if ($message -match 'already exists|RelationAlreadyExists|TF201036|relation already|duplicate') {
+            if ($DuplicateRetryCount -lt 1) {
+                return Add-AdoCoreWorkItemRelation -WorkItemId $WorkItemId `
+                    -TargetWorkItemId $TargetWorkItemId -LinkType $LinkType `
+                    -WorkspaceRoot $WorkspaceRoot -WitApiBase $base `
+                    -Collection $Collection -Project $Project -Repository $Repository `
+                    -ServerUrl $ServerUrl -DuplicateRetryCount ($DuplicateRetryCount + 1)
+            }
+            return [pscustomobject]@{
+                WorkItemId       = $WorkItemId
+                TargetWorkItemId = $TargetWorkItemId
+                LinkType         = $LinkType
+                AlreadyExisted   = $true
+                WitApiBase       = $base
+            }
+        }
+        throw
+    }
+
+    return [pscustomobject]@{
+        WorkItemId       = $WorkItemId
+        TargetWorkItemId = $TargetWorkItemId
+        LinkType         = $LinkType
+        AlreadyExisted   = $false
+        WitApiBase       = $base
+    }
+}
+
+function Copy-AdoCoreWorkItemAttachmentsFromSource {
+    <#
+    .SYNOPSIS
+      Download AttachedFile relations from a source work item and attach them to a target (clone helper).
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$SourceWorkItemId,
+        [Parameter(Mandatory = $true)]
+        [int]$TargetWorkItemId,
+        [Parameter(Mandatory = $true)]
+        [string]$WitApiBase,
+        $SourceRelations = $null
+    )
+
+    Assert-AdoCoreTrustedApiBase -ApiBase $WitApiBase -Name 'WitApiBase'
+
+    $relations = @()
+    if ($null -ne $SourceRelations) {
+        $relations = @($SourceRelations)
+    }
+    else {
+        $existingUri = "$WitApiBase/workitems/$SourceWorkItemId`?`$expand=relations&api-version=7.0"
+        $source = Invoke-RestMethod -Uri $existingUri -Method Get -UseDefaultCredentials
+        if ($source.PSObject.Properties.Name -contains 'relations') {
+            $relations = @($source.relations)
+        }
+    }
+
+    $copied = 0
+    $warnings = New-Object 'System.Collections.Generic.List[string]'
+    $batchMaxCount = 10
+    $batchMaxBytes = 32MB
+    $pendingPaths = New-Object 'System.Collections.Generic.List[string]'
+    $pendingDirs = New-Object 'System.Collections.Generic.List[string]'
+    $pendingBytes = [long]0
+
+    # Dot-source flush so $copied / pending* update in this scope.
+    $flushPendingAttachments = {
+        if ($pendingPaths.Count -eq 0) { return }
+        try {
+            $linked = Add-AdoCoreWorkItemAttachments -WorkItemId $TargetWorkItemId -WitApiBase $WitApiBase `
+                -FilePaths ([string[]]$pendingPaths.ToArray())
+            $copied += [int]$linked
+        }
+        finally {
+            foreach ($dir in @($pendingDirs)) {
+                if ($dir -and (Test-Path -LiteralPath $dir)) {
+                    Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+                }
+            }
+            $pendingPaths.Clear()
+            $pendingDirs.Clear()
+            $pendingBytes = [long]0
+        }
+    }
+
+    try {
+        foreach ($relation in $relations) {
+            if (-not $relation -or [string]$relation.rel -ne 'AttachedFile') { continue }
+            $url = if ($relation.url) { [string]$relation.url } else { '' }
+            if ([string]::IsNullOrWhiteSpace($url)) { continue }
+
+            $fileName = 'attachment.bin'
+            if ($relation.attributes -and $relation.attributes.name) {
+                $fileName = [IO.Path]::GetFileName([string]$relation.attributes.name)
+            }
+            if ([string]::IsNullOrWhiteSpace($fileName)) { $fileName = 'attachment.bin' }
+
+            try {
+                Assert-AdoCoreTrustedDownloadUrl -Url $url -Name 'AttachmentUrl'
+            }
+            catch {
+                [void]$warnings.Add("Skipped attachment '$fileName' from $SourceWorkItemId`: $($_.Exception.Message)")
+                continue
+            }
+
+            # Unique temp directory so the uploaded basename stays the source file name
+            # (Add-AdoCoreWorkItemAttachments uses the path basename as attributes.name).
+            $tempDir = Join-Path ([IO.Path]::GetTempPath()) ("ado-core-clone-" + [guid]::NewGuid().ToString('N'))
+            [void](New-Item -ItemType Directory -Path $tempDir -Force)
+            $tempPath = Join-Path $tempDir $fileName
+            try {
+                # No cross-host redirects: authenticated download must stay on the trusted host.
+                Invoke-WebRequest -Uri $url -OutFile $tempPath -UseDefaultCredentials -UseBasicParsing `
+                    -MaximumRedirection 0 | Out-Null
+            }
+            catch {
+                [void]$warnings.Add("Failed to download attachment '$fileName' from $SourceWorkItemId`: $($_.Exception.Message)")
+                if (Test-Path -LiteralPath $tempDir) {
+                    Remove-Item -LiteralPath $tempDir -Recurse -Force -ErrorAction SilentlyContinue
+                }
+                continue
+            }
+
+            $fileBytes = ([IO.FileInfo]$tempPath).Length
+            if ($pendingPaths.Count -gt 0 -and (
+                    $pendingPaths.Count -ge $batchMaxCount -or
+                    ($pendingBytes + $fileBytes) -gt $batchMaxBytes)) {
+                . $flushPendingAttachments
+            }
+
+            [void]$pendingPaths.Add($tempPath)
+            [void]$pendingDirs.Add($tempDir)
+            $pendingBytes += $fileBytes
+
+            if ($pendingPaths.Count -ge $batchMaxCount -or $pendingBytes -ge $batchMaxBytes) {
+                . $flushPendingAttachments
+            }
+        }
+
+        . $flushPendingAttachments
+    }
+    finally {
+        foreach ($dir in @($pendingDirs)) {
+            if ($dir -and (Test-Path -LiteralPath $dir)) {
+                Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    return [pscustomobject]@{
+        CopiedCount = $copied
+        Warning     = if ($warnings.Count -gt 0) { [string]::Join('; ', $warnings.ToArray()) } else { '' }
+    }
+}
+
+function Clone-AdoCoreWorkItem {
+    <#
+    .SYNOPSIS
+      Clone a work item: copy writable fields, reset State/Reason to New, optional Related + Copied-from comment.
+    .DESCRIPTION
+      Defaults match agreed ado-core clone policy:
+      - Title: -Title if supplied (non-blank); omit/$null → "{source title} - Copy"; blank/whitespace throws
+      - Body/people/classification/planning: copy non-empty writable values
+      - Version/build fields blank unless set via -Fields
+      - State/Reason forced to New unless overridden in -Fields
+      - Related link to source on (opt out -NoRelatedLink)
+      - "Copied from …" discussion on (opt out -NoCopiedFromComment)
+      - Other source relations not copied; attachments off unless -CopyAttachments
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$WorkItemId,
+
+        # Untyped so omit stays distinct from empty string.
+        $Title = $null,
+        [hashtable]$Fields = @{},
+        [switch]$NoRelatedLink,
+        [switch]$NoCopiedFromComment,
+        [switch]$CopyAttachments,
+        [string]$WorkspaceRoot = '',
+        [string]$WitApiBase = '',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $expand = if ($CopyAttachments) { 'All' } else { '' }
+    $source = Get-AdoCoreWorkItem -WorkItemId $WorkItemId -WorkspaceRoot $WorkspaceRoot `
+        -WitApiBase $WitApiBase -Expand $expand -Collection $Collection -Project $Project `
+        -Repository $Repository -ServerUrl $ServerUrl
+    if (-not $source -or -not $source.fields) {
+        throw "Work item $WorkItemId was not returned by WIT GET."
+    }
+
+    $sourceFields = $source.fields
+    $workItemType = [string]$sourceFields.'System.WorkItemType'
+    if ([string]::IsNullOrWhiteSpace($workItemType)) {
+        throw "Work item $WorkItemId has no System.WorkItemType."
+    }
+
+    $sourceTitle = [string]$sourceFields.'System.Title'
+    if ([string]::IsNullOrWhiteSpace($sourceTitle)) {
+        throw "Work item $WorkItemId has no System.Title."
+    }
+
+    if ($null -ne $Title -and [string]::IsNullOrWhiteSpace([string]$Title)) {
+        throw 'Title cannot be empty or whitespace; omit -Title to use "{source} - Copy".'
+    }
+    $cloneTitle = if ($null -ne $Title) {
+        [string]$Title
+    }
+    else {
+        "$sourceTitle - Copy"
+    }
+
+    $fieldMap = New-AdoCoreCloneFieldMapFromSource -SourceFields $sourceFields -Overrides $Fields
+
+    $created = New-AdoCoreWorkItem -Title $cloneTitle -WorkItemType $workItemType -Fields $fieldMap `
+        -WorkspaceRoot $WorkspaceRoot -WitApiBase $WitApiBase -Collection $Collection `
+        -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+
+    $warnings = New-Object 'System.Collections.Generic.List[string]'
+    $relatedLinked = $false
+    $copiedFromComment = $false
+    $attachmentCount = 0
+
+    if (-not $NoRelatedLink) {
+        try {
+            [void](Add-AdoCoreWorkItemRelation -WorkItemId $created.WorkItemId `
+                    -TargetWorkItemId $WorkItemId -LinkType 'System.LinkTypes.Related' `
+                    -WorkspaceRoot $WorkspaceRoot -WitApiBase $created.WitApiBase `
+                    -Collection $Collection -Project $Project -Repository $Repository `
+                    -ServerUrl $ServerUrl)
+            $relatedLinked = $true
+        }
+        catch {
+            [void]$warnings.Add("Related link failed after clone: $($_.Exception.Message)")
+        }
+    }
+
+    if (-not $NoCopiedFromComment) {
+        try {
+            $sourceUrl = Get-AdoCoreWorkItemWebUrl -WorkItemId $WorkItemId -Endpoints $created.Endpoints
+            $safeType = ConvertTo-AdoCoreHtmlText -Value $workItemType
+            $safeUrl = ConvertTo-AdoCoreHtmlText -Value $sourceUrl
+            $safeId = ConvertTo-AdoCoreHtmlText -Value ([string]$WorkItemId)
+            $commentText = "Copied from $safeType <a href=`"$safeUrl`">$safeId</a>"
+            [void](Add-AdoCoreWorkItemComment -WorkItemId $created.WorkItemId -Text $commentText `
+                    -WorkspaceRoot $WorkspaceRoot -WitApiBase $created.WitApiBase `
+                    -Collection $Collection -Project $Project -Repository $Repository `
+                    -ServerUrl $ServerUrl)
+            $copiedFromComment = $true
+        }
+        catch {
+            [void]$warnings.Add("Copied-from comment failed after clone: $($_.Exception.Message)")
+        }
+    }
+
+    if ($CopyAttachments) {
+        try {
+            $sourceRelations = if ($source.PSObject.Properties.Name -contains 'relations') { $source.relations } else { @() }
+            $attachResult = Copy-AdoCoreWorkItemAttachmentsFromSource -SourceWorkItemId $WorkItemId `
+                -TargetWorkItemId $created.WorkItemId -WitApiBase $created.WitApiBase `
+                -SourceRelations $sourceRelations
+            $attachmentCount = [int]$attachResult.CopiedCount
+            if ($attachResult.Warning) {
+                [void]$warnings.Add([string]$attachResult.Warning)
+            }
+        }
+        catch {
+            [void]$warnings.Add("Attachment copy failed after clone: $($_.Exception.Message)")
+        }
+    }
+
+    return [pscustomobject]@{
+        WorkItemId         = $created.WorkItemId
+        SourceWorkItemId   = $WorkItemId
+        Title              = $created.Title
+        WebUrl             = $created.WebUrl
+        WorkItemType       = $workItemType
+        RelatedLinked      = $relatedLinked
+        CopiedFromComment  = $copiedFromComment
+        AttachmentCount    = $attachmentCount
+        Warning            = if ($warnings.Count -gt 0) { [string]::Join('; ', $warnings.ToArray()) } else { '' }
+        Endpoints          = $created.Endpoints
+        WitApiBase         = $created.WitApiBase
     }
 }
 
@@ -1985,6 +2816,6 @@ function Invoke-AdoCoreWiql {
     Assert-AdoCoreTrustedApiBase -ApiBase $WitApiBase -Name 'WitApiBase'
     $uri = "$WitApiBase/wiql?api-version=7.0"
     $body = (@{ query = $Query } | ConvertTo-Json -Compress)
-    return Invoke-RestMethod -Uri $uri -Method Post -Body $body `
-        -ContentType 'application/json' -UseDefaultCredentials
+    return Invoke-RestMethod -Uri $uri -Method Post -Body (ConvertTo-AdoCoreUtf8RequestBody -Json $body) `
+        -ContentType (Get-AdoCoreJsonContentType -MediaType 'application/json') -UseDefaultCredentials
 }

@@ -15,10 +15,12 @@ ADO Core owns generic operations:
 - Add or update a PR reviewer (`Set-AdoCorePullRequestReviewer -ReviewType Required|Optional`, default Required)
 - Build PR web URLs
 - Resolve authenticated-user metadata
-- Get work items and comments
+- Get work items and comments; post discussion comments (`Add-AdoCoreWorkItemComment`)
 - Batch-get work items and get work-item revisions
 - Create and update work items (`New-AdoCoreWorkItem` / `Update-AdoCoreWorkItem`)
-- Link work items to pull requests; optionally commits via `-LinkCommits`
+- Merge tags (`Update-AdoCoreWorkItemTags -Add` / `-Remove`); full replace stays on `-Fields System.Tags`
+- Clone work items (`Clone-AdoCoreWorkItem`) with Related + Copied-from defaults
+- Link work items to each other (`Add-AdoCoreWorkItemRelation`) or to pull requests (`-LinkCommits` optional)
 - Attach files to work items
 - Resolve build definitions and list builds
 - Escape and execute Wiql queries
