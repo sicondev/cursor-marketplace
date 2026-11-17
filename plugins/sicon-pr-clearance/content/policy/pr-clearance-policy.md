@@ -1,4 +1,4 @@
-<!-- contrib-managed: pr-clearance@0.3.3 — source: ai-devtools/contrib/pr-clearance/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: pr-clearance@0.3.10 — source: ai-devtools/contrib/pr-clearance/ — prefer PR there; local edits may be overwritten on sync -->
 
 # PR clearance Policy (agent)
 

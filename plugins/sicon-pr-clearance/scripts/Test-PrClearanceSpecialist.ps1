@@ -145,10 +145,81 @@ $safeRoot = Join-Path ([IO.Path]::GetTempPath()) ('pr-clearance-spec-' + [guid]:
 New-Item -ItemType Directory -Force -Path $safeRoot | Out-Null
 try {
     $null = Invoke-PrClearanceSpecialist -Path 'src/Foo.cs' -Issues @($a) -PullRequestId 1 -WorkspaceRoot $safeRoot
-    Assert-Equal 'src/Foo.cs' $script:capturedSafePath 'validated relative Path is still dispatched'
+    Assert-equal 'src/Foo.cs' $script:capturedSafePath 'validated relative Path is still dispatched'
 } finally {
     Remove-Item -LiteralPath $safeRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
+
+# New-SpecialistHandoff wrapper forwards Path/Issues/Guidance; Invoke-Specialist still validates PreparedResults.
+Reset-PrClearanceRegistry
+Import-PrClearanceBindForTest -Config ([pscustomobject]@{
+    review = 'codeant-triage'; findings = 'codeant-triage'; forge = 'ado-core'; vcs = 'git-core'; specialist = 'codeant-triage'
+})
+$script:capturedHandoff = $null
+Register-PrClearanceTool -ToolId 'codeant-triage' -Operations @{
+    'New-SpecialistHandoff' = {
+        param($Path, $Issues, $PullRequestId, $WorkspaceRoot, $Guidance)
+        $script:capturedHandoff = [pscustomobject]@{
+            Path = $Path; Issues = @($Issues); PullRequestId = $PullRequestId
+            WorkspaceRoot = $WorkspaceRoot; Guidance = $Guidance
+        }
+        return [pscustomobject]@{
+            ContractVersion = '1'
+            Path = $Path
+            PullRequestId = $PullRequestId
+            WorkspaceRoot = $WorkspaceRoot
+            IssueIds = @($Issues | ForEach-Object { [string]$_.Id })
+            Skills = @('C:\fake\silent-triage.md')
+            Prompt = "fix path=$Path ids=$((@($Issues | ForEach-Object { $_.Id }) -join ',')) guidance=$Guidance"
+        }
+    }
+    'Invoke-Specialist' = {
+        param($Path, $Issues, $PullRequestId, $WorkspaceRoot, $PreparedResults)
+        return [pscustomobject]@{ results = @($PreparedResults); paths = @($Path) }
+    }
+} -Load {}
+$handoffRoot = Join-Path ([IO.Path]::GetTempPath()) ('pr-clearance-handoff-' + [guid]::NewGuid().ToString('n'))
+New-Item -ItemType Directory -Force -Path $handoffRoot | Out-Null
+try {
+    $handoff = New-PrClearanceSpecialistHandoff -Path 'src/Foo.cs' -Issues @($a, $c) -PullRequestId 42 -WorkspaceRoot $handoffRoot -Guidance 'prefer helper'
+    Assert-True ($null -ne $script:capturedHandoff) 'New-SpecialistHandoff reached the port'
+    Assert-equal 'src/Foo.cs' $script:capturedHandoff.Path 'handoff Path forwarded'
+    Assert-equal 2 @($script:capturedHandoff.Issues).Count 'handoff Issues forwarded'
+    Assert-equal 'prefer helper' $script:capturedHandoff.Guidance 'handoff Guidance forwarded'
+    Assert-equal '1' $handoff.ContractVersion 'handoff ContractVersion'
+    Assert-equal 2 @($handoff.IssueIds).Count 'handoff IssueIds'
+    Assert-True ($handoff.Prompt -match 'prefer helper') 'handoff Prompt includes Guidance'
+    Assert-True (@($handoff.Skills).Count -ge 1) 'handoff Skills non-empty'
+
+    $reg = New-PrClearanceActRegister -PullRequestId 42
+    $assertThrew = $false
+    try { Assert-PrClearanceSpecialistHandoffStarted -Register $reg -Path 'src/Foo.cs' } catch { $assertThrew = $true }
+    Assert-True $assertThrew 'Assert-PrClearanceSpecialistHandoffStarted fails before handoff'
+    $fresh = Get-PrClearanceSpecialistTaskAction -Register $reg
+    Assert-equal 'spawn' $fresh.Action 'empty session spawns'
+    Assert-equal '' $fresh.SessionId 'spawn has no session id'
+    Set-PrClearanceSpecialistHandoffStarted -Register $reg -Path 'src/Foo.cs' -SessionId 'task-abc'
+    Assert-equal 'task-abc' $reg.specialistSessionId 'session id stored'
+    $again = Get-PrClearanceSpecialistTaskAction -Register $reg
+    Assert-equal 'resume' $again.Action 'existing session resumes'
+    Assert-equal 'task-abc' $again.SessionId 'resume keeps the session id'
+    Set-PrClearanceSpecialistHandoffStarted -Register $reg -Path 'src/Foo.cs'
+    Assert-equal 'task-abc' $reg.specialistSessionId 'resume refresh does not replace session id'
+    Assert-True (-not [string]::IsNullOrWhiteSpace([string]$reg.specialistHandoffAt)) 'handoff marker set'
+    Assert-PrClearanceSpecialistHandoffStarted -Register $reg -Path 'src/Foo.cs'
+    $gotAfterHandoff = Invoke-PrClearanceSpecialist -Path 'src/Foo.cs' -Issues @($a, $c) -PullRequestId 42 -WorkspaceRoot $handoffRoot -PreparedResults $preset
+    Assert-equal 'fixed' $gotAfterHandoff.results[0].disposition 'PreparedResults still validated after handoff'
+    Clear-PrClearanceSpecialistSession -Register $reg
+    Assert-equal '' $reg.specialistSessionId 'session cleared'
+    Assert-equal '' $reg.specialistHandoffAt 'handoff marker cleared'
+    $afterClear = Get-PrClearanceSpecialistTaskAction -Register $reg
+    Assert-equal 'spawn' $afterClear.Action 'cleared session spawns again'
+} finally {
+    Remove-Item -LiteralPath $handoffRoot -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+Assert-True (Test-PrClearanceIgnoredHandoffDirtyPath -Path '.tmp/pr-clearance/act-register-1.json') 'act register dirty path ignored'
+Assert-True (-not (Test-PrClearanceIgnoredHandoffDirtyPath -Path 'src/Foo.cs')) 'product dirty path not ignored'
 
 if ($failures.Count -gt 0) {
     Write-Error ('Test-PrClearanceSpecialist FAILED:' + [Environment]::NewLine + ' - ' + ($failures -join ([Environment]::NewLine + ' - ')))

@@ -836,6 +836,8 @@ try {
         Assert-True ($commandText -match '(?i)specialist needs a decision') 'specialist ask prompt is not Policy could not decide'
         Assert-True (-not $commandText.Contains('Each `fix`: implement if needed')) 'command no longer says Each `fix`: implement if needed'
         Assert-True ($commandText.Contains('one specialist')) 'command states one specialist per Act'
+        Assert-True ($commandText -match 'report\.paths') 'command resume keeps a required helper in report.paths'
+        Assert-True ($commandText -match 'earlier Act edits') 'command resume tells the specialist to read earlier Act edits'
         Assert-True ($commandText -match '(?i)serial') 'command states serial Path'
         Assert-True ($commandText -match '(?i)dispose') 'command states dispose at Act end'
         Assert-True ($commandText -match '(?i)Orient') 'command names Orient for mid-clearance Q&A'

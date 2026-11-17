@@ -9,6 +9,7 @@ function Assert-True { param([bool]$Condition, [string]$Message) if (-not $Condi
 function Assert-Equal { param($Expected, $Actual, [string]$Message) if ("$Expected" -ne "$Actual") { [void]$failures.Add("$Message (expected '$Expected', got '$Actual')") } }
 
 Assert-True ($null -ne (Get-Command Invoke-CodeAntSilentTriage -ErrorAction SilentlyContinue)) 'Invoke-CodeAntSilentTriage is exported'
+Assert-True ($null -ne (Get-Command New-CodeAntSilentTriageHandoff -ErrorAction SilentlyContinue)) 'New-CodeAntSilentTriageHandoff is exported'
 
 $foo = [pscustomobject]@{ Id = '10'; Number = 1; Path = 'src/Foo.cs'; Line = '4'; Comment = 'use helper' }
 $bar = [pscustomobject]@{ Id = '11'; Number = 2; Path = 'src/Bar.cs'; Line = '1'; Comment = 'other' }
@@ -175,6 +176,26 @@ Assert-True ($md -match '(?i)do not run.+test') 'specialist does not run reposit
 Assert-True ($md -match '(?i)preference-only') 'preference-only findings are dismissed without a human bounce'
 Assert-True ($md -match '(?i)bounded.+low-risk') 'bounded low-risk findings are fixed without a human bounce'
 Assert-True ($md -match '(?i)security.+exploitation.+correctness.+bug') 'risk-bearing findings are not dismissed as flavour'
+Assert-True ($md -match '(?i)separate Cursor Task') 'specialist runs as a separate Task'
+Assert-True ($md -match 'PreparedResults') 'contract names PreparedResults for the validator'
+
+$handoff = New-CodeAntSilentTriageHandoff -Path 'src/Foo.cs' -Issues @($foo) -PullRequestId 7 -WorkspaceRoot 'C:\tmp\ws' -Guidance 'use the helper'
+Assert-equal '1' $handoff.ContractVersion 'handoff ContractVersion'
+Assert-equal 'src/foo.cs' $handoff.Path 'handoff Path normalized'
+Assert-equal 7 $handoff.PullRequestId 'handoff PullRequestId'
+Assert-True ($handoff.Prompt -match 'src/foo.cs') 'handoff Prompt contains Path'
+Assert-True ($handoff.Prompt -match '10') 'handoff Prompt contains Issue Id'
+Assert-True ($handoff.Prompt -match 'use the helper') 'handoff Prompt echoes Guidance'
+Assert-equal 2 ([regex]::Matches($handoff.Prompt, 'Earlier Paths in this Act').Count) 'path nudge is stated before Issues and restated after'
+Assert-True ($handoff.Prompt -match 'already = true') 'handoff Prompt returns already when a prior edit satisfies the comment'
+Assert-True ($handoff.Prompt -match 'helper outside this Path') 'handoff Prompt still allows a required helper join'
+Assert-True ($handoff.Prompt -match 'report\.paths') 'handoff Prompt requires extra files in report.paths'
+Assert-True ($handoff.Prompt -match 'Do not rework an earlier Path') 'handoff Prompt leaves settled Paths alone unless this Path needs them'
+Assert-True ($md -match 'helper outside this Path') 'silent-triage md allows a required helper'
+Assert-True ($md -match 'Earlier Paths from this Act') 'silent-triage md keeps earlier Act Paths in context'
+Assert-True (@($handoff.IssueIds) -contains '10') 'handoff IssueIds includes issue'
+Assert-True (@($handoff.Skills).Count -ge 1) 'handoff Skills non-empty when silent-triage.md resolves'
+Assert-True ($handoff.Skills[0] -match 'codeant-silent-triage\.md$') 'Skills point at silent-triage contract'
 
 $commandCandidates = @(
     (Join-Path (Split-Path -Parent (Split-Path -Parent $scriptDir)) 'adapters\cursor\commands\codeant-triage.md'),
