@@ -1,4 +1,4 @@
-<!-- contrib-managed: codeant-triage@0.6.0 — source: ai-devtools/contrib/codeant-triage/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: codeant-triage@0.9.13 — source: ai-devtools/contrib/codeant-triage/ — prefer PR there; local edits may be overwritten on sync -->
 
 # UAP scan — shared fix loop
 
