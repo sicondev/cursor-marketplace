@@ -73,11 +73,6 @@
                         "name":  "sicon-git-core",
                         "source":  "./plugins/sicon-git-core",
                         "description":  "Shared local git invoke, head SHA, commit, and push library for other Sicon plugins (no slash command)"
-                    },
-                    {
-                        "name":  "sicon-nineyards",
-                        "source":  "./plugins/sicon-nineyards",
-                        "description":  "Commit, push, and create or update a pull request through one message-gated /nineyards workflow"
                     }
                 ]
 }
