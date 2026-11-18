@@ -104,7 +104,9 @@ function Push-GitCore {
 
         [string]$Remote = 'origin',
 
-        [string]$Branch = ''
+        [string]$Branch = '',
+
+        [switch]$SetUpstream
     )
 
     $Remote = Assert-GitCoreRefName -Name $Remote -Kind 'Remote'
@@ -116,8 +118,18 @@ function Push-GitCore {
         $Branch = ([string]$current.output).Trim()
     }
     $Branch = Assert-GitCoreRefName -Name $Branch -Kind 'Branch'
+    $branchFormat = Invoke-GitCore -RepoRoot $RepoRoot `
+        -GitArgs @('check-ref-format', '--branch', $Branch)
+    if (-not $branchFormat.ok) {
+        throw "Invalid branch name '$Branch': $($branchFormat.output)"
+    }
 
-    $push = Invoke-GitCore -RepoRoot $RepoRoot -GitArgs @('push', '--', $Remote, $Branch)
+    $gitArgs = @('push')
+    if ($SetUpstream) {
+        $gitArgs += '-u'
+    }
+    $gitArgs += @('--', $Remote, $Branch)
+    $push = Invoke-GitCore -RepoRoot $RepoRoot -GitArgs $gitArgs
     if (-not $push.ok) {
         throw (Get-GitCoreFailureMessage -Result $push)
     }

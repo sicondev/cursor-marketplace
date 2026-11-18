@@ -133,6 +133,13 @@ try {
     $bareHead = Invoke-GitCore -RepoRoot $repo -GitArgs @('--git-dir', $bare, 'rev-parse', 'HEAD')
     Assert-True $bareHead.ok 'bare remote has HEAD'
     Assert-True (([string]$bareHead.output).Trim() -eq $shaOnly) 'Push-GitCore published the latest SHA'
+    $upstreamUnset = Invoke-GitCore -RepoRoot $repo -GitArgs @('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}')
+    Assert-True (-not $upstreamUnset.ok) 'default Push-GitCore does not set upstream'
+
+    Push-GitCore -RepoRoot $repo -SetUpstream
+    $upstreamSet = Invoke-GitCore -RepoRoot $repo -GitArgs @('rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}')
+    Assert-True $upstreamSet.ok 'Push-GitCore -SetUpstream configures upstream'
+    Assert-True (([string]$upstreamSet.output).Trim() -eq 'origin/main') 'upstream is origin/main'
 
     $optThrew = $false
     try {
@@ -213,9 +220,9 @@ try {
         [pscustomobject]@{ oldStart = 5; oldCount = 2; newStart = 5; newCount = 0 }
     )
     $split = @(Convert-GitCoreLineRangeThroughHunks -Start 3 -End 10 -HunkHeaders $deleteMid)
-    Assert-True ($split.Count -eq 2) 'mid delete yields two coalesced runs'
-    Assert-True (([int]$split[0].start -eq 3) -and ([int]$split[0].end -eq 4)) 'prefix before mid delete'
-    Assert-True (([int]$split[1].start -eq 5) -and ([int]$split[1].end -eq 8)) 'suffix after mid delete shifts by -2'
+    # Adjacent new-file runs coalesce: prefix 3-4 + shifted suffix 5-8 => 3-8
+    Assert-True ($split.Count -eq 1) 'mid delete coalesces adjacent new-file runs'
+    Assert-True (([int]$split[0].start -eq 3) -and ([int]$split[0].end -eq 8)) 'mid delete maps span with delete gap removed'
     $fullyGone = @(Convert-GitCoreLineRangeThroughHunks -Start 5 -End 6 -HunkHeaders $deleteMid)
     Assert-True ($fullyGone.Count -eq 0) 'range wholly inside delete yields nothing'
     $insertBefore = @(

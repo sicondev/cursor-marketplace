@@ -1,0 +1,18 @@
+---
+description: Nineyards loader — commit, push, PR in one command (/nineyards)
+alwaysApply: false
+---
+
+<!-- contrib-managed: nineyards@0.2.3 — source: ai-devtools/contrib/nineyards/ — prefer PR there; local edits may be overwritten on sync -->
+
+# Nineyards (loader)
+
+On `/nineyards`, `nine yards`, `the whole nine yards`, `commit push pr`, or similar — follow `@~/.cursor/commands/nineyards.md`.
+
+Scripts / howto: resolve **plugin-first** — `sicon-nineyards` under `%USERPROFILE%\.cursor\plugins\` (direct or newest under **`plugins\marketplaces\`** / **`plugins\cache\`**); **only if no plugin** → dogfood `%USERPROFILE%\.cursor\packs\nineyards\scripts\` and `README.md`.
+
+**Message gate before commit** — show proposed commit/PR text and CodeAnt create-only intent; refine in chat or say `go`; do not ship until the gate clears.
+
+**When NOT:** `/flyby`, CodeAnt / triage loops, reviewing an existing PR number, or when the user invoked another command for the same intent this turn.
+
+Probe **per resolved repo** for remote type — never workspace-wide.

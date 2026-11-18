@@ -1,0 +1,17 @@
+{
+    "name":  "sicon-nineyards",
+    "displayName":  "Sicon Nineyards",
+    "version":  "0.2.3",
+    "description":  "Commit, push, and create or update a pull request through one message-gated /nineyards workflow",
+    "author":  {
+                   "email":  "rudolf.bothma@sicon.co.uk",
+                   "name":  "Rudolf Bothma"
+               },
+    "license":  "MIT",
+    "keywords":  [
+                     "cursor",
+                     "plugin",
+                     "sicon",
+                     "nineyards"
+                 ]
+}
