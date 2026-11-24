@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.48"
+                     "version":  "0.1.49"
                  },
     "plugins":  [
                     {
@@ -73,6 +73,11 @@
                         "name":  "sicon-git-core",
                         "source":  "./plugins/sicon-git-core",
                         "description":  "Shared local git invoke, head SHA, commit, and push library for other Sicon plugins (no slash command)"
+                    },
+                    {
+                        "name":  "sicon-sage-views",
+                        "source":  "./plugins/sicon-sage-views",
+                        "description":  "Create Sage 200 ObjectStore read views and view collections from the live database schema, with generated joins and API models"
                     }
                 ]
 }

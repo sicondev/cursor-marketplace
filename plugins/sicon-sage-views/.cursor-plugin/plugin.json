@@ -1,0 +1,12 @@
+{
+  "name": "sicon-sage-views",
+  "displayName": "Sicon Sage Views",
+  "version": "0.1.0",
+  "description": "Create Sage 200 ObjectStore read views and view collections from the live database schema, with generated joins and API models",
+  "author": {
+    "name": "Nathan Freeman-Smith"
+  },
+  "license": "MIT",
+  "keywords": ["cursor", "plugin", "skills", "sicon", "sage200", "objectstore", "views"],
+  "logo": "assets/logo.svg"
+}
