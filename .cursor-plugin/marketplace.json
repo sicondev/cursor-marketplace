@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.49"
+                     "version":  "0.1.50"
                  },
     "plugins":  [
                     {
@@ -55,11 +55,6 @@
                         "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); typesetter required; tip-close silent format+lint + hard static floor then Prove; ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance"
                     },
                     {
-                        "name":  "sicon-ado-core",
-                        "source":  "./plugins/sicon-ado-core",
-                        "description":  "Shared Azure DevOps Git, pull-request, work-item, and build library for other Sicon plugins (no slash command)"
-                    },
-                    {
                         "name":  "sicon-pr-clearance",
                         "source":  "./plugins/sicon-pr-clearance",
                         "description":  "Drive an Azure DevOps pull request to review-quiet via Policy, Human, and configured review tools"
@@ -78,6 +73,11 @@
                         "name":  "sicon-sage-views",
                         "source":  "./plugins/sicon-sage-views",
                         "description":  "Create Sage 200 ObjectStore read views and view collections from the live database schema, with generated joins and API models"
+                    },
+                    {
+                        "name":  "sicon-ado-core",
+                        "source":  "./plugins/sicon-ado-core",
+                        "description":  "Shared Azure DevOps Git, pull-request, work-item, and build library for other Sicon plugins (no slash command)"
                     }
                 ]
 }

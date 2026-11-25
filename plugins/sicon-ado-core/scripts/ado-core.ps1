@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
-$script:AdoCoreLibraryVersion = [version]'0.9.0'
+$script:AdoCoreLibraryVersion = [version]'0.10.0'
 
 # System / derived fields never copied by Clone-AdoCoreWorkItem.
 $script:AdoCoreCloneAlwaysSkipFieldRefNames = [System.Collections.Generic.HashSet[string]]::new(
@@ -902,6 +902,286 @@ function Get-AdoCoreBuilds {
         count  = $builds.Count
         builds = $builds
     }
+}
+
+function Get-AdoCoreHttpStatusCode {
+    param($ErrorRecord)
+
+    if ($null -eq $ErrorRecord) { return 0 }
+    $ex = $ErrorRecord.Exception
+    while ($null -ne $ex) {
+        if ($ex.PSObject.Properties.Name -contains 'Response' -and $ex.Response) {
+            try { return [int]$ex.Response.StatusCode } catch { }
+        }
+        $ex = $ex.InnerException
+    }
+    return 0
+}
+
+function Stop-AdoCoreTerminatingError {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ErrorId,
+
+        [Parameter(Mandatory = $true)]
+        [System.Management.Automation.ErrorCategory]$Category,
+
+        [Exception]$InnerException = $null
+    )
+
+    $exception = if ($null -ne $InnerException) {
+        New-Object System.InvalidOperationException -ArgumentList $Message, $InnerException
+    }
+    else {
+        New-Object System.InvalidOperationException $Message
+    }
+    $record = New-Object System.Management.Automation.ErrorRecord (
+        $exception, $ErrorId, $Category, $null)
+    throw $record
+}
+
+function Invoke-AdoCoreAuthenticatedGet {
+    <#
+    .SYNOPSIS
+      GET with default credentials. HTTP 404 follows -ErrorPolicy; every other failure is AdoCoreReadFailed.
+    .DESCRIPTION
+      Fail (default, same names as Get-AdoCoreWorkItems -ErrorPolicy): 404 throws
+      ErrorId AdoCoreResourceNotFound and the caller-supplied message.
+      Omit: 404 returns $null.
+      Transport, auth, and non-404 HTTP failures always throw ErrorId AdoCoreReadFailed
+      (message starts with "Could not read"), including when -ErrorPolicy is Omit.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Uri,
+
+        [ValidateSet('Fail', 'Omit')]
+        [string]$ErrorPolicy = 'Fail',
+
+        [Parameter(Mandatory = $true)]
+        [string]$NotFoundMessage,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ReadContext
+    )
+
+    try {
+        return Invoke-WebRequest -Uri $Uri -Method Get -UseDefaultCredentials -UseBasicParsing
+    }
+    catch {
+        $status = Get-AdoCoreHttpStatusCode -ErrorRecord $_
+        if ($status -eq 404) {
+            if ($ErrorPolicy -eq 'Omit') { return $null }
+            Stop-AdoCoreTerminatingError -Message $NotFoundMessage -ErrorId 'AdoCoreResourceNotFound' `
+                -Category ([System.Management.Automation.ErrorCategory]::ObjectNotFound) -InnerException $_.Exception
+        }
+
+        $detail = [string]$_.Exception.Message
+        if ($_.ErrorDetails -and $_.ErrorDetails.Message) {
+            $detail = "$detail $($_.ErrorDetails.Message)"
+        }
+        Stop-AdoCoreTerminatingError -Message "Could not read ${ReadContext}: $detail" -ErrorId 'AdoCoreReadFailed' `
+            -Category ([System.Management.Automation.ErrorCategory]::ReadError) -InnerException $_.Exception
+    }
+}
+
+function Get-AdoCoreBuildTimeline {
+    <#
+    .SYNOPSIS
+      GET one build timeline. Returns { count; records } — API record objects, unclassified.
+    .DESCRIPTION
+      Records pass through (id, parentId, type, name, state, result, order, startTime,
+      finishTime, errorCount, warningCount, log.id). result may be absent. issues may be
+      absent even when errorCount is non-zero; read the log for the message.
+      -ErrorPolicy Fail (default): HTTP 404 throws ErrorId AdoCoreResourceNotFound,
+      message "ADO build {BuildId} was not found."
+      -ErrorPolicy Omit: HTTP 404 returns $null (distinct from a readable empty timeline).
+      Any other failure throws ErrorId AdoCoreReadFailed, message
+      "Could not read ADO build {BuildId} timeline: ...".
+      Does not decide whether a build or task passed.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$BuildId,
+
+        [string]$WorkspaceRoot = '',
+        [string]$BuildApiBase = '',
+        [ValidateSet('Fail', 'Omit')]
+        [string]$ErrorPolicy = 'Fail',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $base = Resolve-AdoCoreBuildApiBaseValue -WorkspaceRoot $WorkspaceRoot -BuildApiBase $BuildApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'BuildApiBase'
+
+    $uri = "$base/builds/$BuildId/timeline?api-version=7.0"
+    $response = Invoke-AdoCoreAuthenticatedGet -Uri $uri -ErrorPolicy $ErrorPolicy `
+        -NotFoundMessage "ADO build $BuildId was not found." `
+        -ReadContext "ADO build $BuildId timeline"
+    if ($null -eq $response) { return $null }
+
+    if ([int]$response.StatusCode -eq 204 -or [string]::IsNullOrWhiteSpace([string]$response.Content)) {
+        return [pscustomobject]@{
+            count   = 0
+            records = @()
+        }
+    }
+
+    try {
+        $parsed = $response.Content | ConvertFrom-Json
+    }
+    catch {
+        Stop-AdoCoreTerminatingError -Message "Could not read ADO build $BuildId timeline: $($_.Exception.Message)" `
+            -ErrorId 'AdoCoreReadFailed' -Category ([System.Management.Automation.ErrorCategory]::ReadError) `
+            -InnerException $_.Exception
+    }
+
+    $records = @()
+    if ($parsed -and ($parsed.PSObject.Properties.Name -contains 'records') -and $null -ne $parsed.records) {
+        $records = @($parsed.records)
+    }
+    return [pscustomobject]@{
+        count   = $records.Count
+        records = $records
+    }
+}
+
+function Get-AdoCoreBuildLogs {
+    <#
+    .SYNOPSIS
+      GET the log list for one build. Returns { count; logs } — API log objects, no log text.
+    .DESCRIPTION
+      Each log passes through (id, type, lineCount, createdOn, lastChangedOn, url).
+      Use lineCount to size a log before reading it with Get-AdoCoreBuildLog -StartLine/-EndLine.
+      -ErrorPolicy Fail (default): HTTP 404 throws ErrorId AdoCoreResourceNotFound,
+      message "ADO build {BuildId} was not found."
+      -ErrorPolicy Omit: HTTP 404 returns $null.
+      Any other failure throws ErrorId AdoCoreReadFailed, message
+      "Could not read ADO build {BuildId} logs: ...".
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$BuildId,
+
+        [string]$WorkspaceRoot = '',
+        [string]$BuildApiBase = '',
+        [ValidateSet('Fail', 'Omit')]
+        [string]$ErrorPolicy = 'Fail',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $base = Resolve-AdoCoreBuildApiBaseValue -WorkspaceRoot $WorkspaceRoot -BuildApiBase $BuildApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'BuildApiBase'
+
+    $uri = "$base/builds/$BuildId/logs?api-version=7.0"
+    $response = Invoke-AdoCoreAuthenticatedGet -Uri $uri -ErrorPolicy $ErrorPolicy `
+        -NotFoundMessage "ADO build $BuildId was not found." `
+        -ReadContext "ADO build $BuildId logs"
+    if ($null -eq $response) { return $null }
+
+    if ([int]$response.StatusCode -eq 204 -or [string]::IsNullOrWhiteSpace([string]$response.Content)) {
+        return [pscustomobject]@{
+            count = 0
+            logs  = @()
+        }
+    }
+
+    try {
+        $parsed = $response.Content | ConvertFrom-Json
+    }
+    catch {
+        Stop-AdoCoreTerminatingError -Message "Could not read ADO build $BuildId logs: $($_.Exception.Message)" `
+            -ErrorId 'AdoCoreReadFailed' -Category ([System.Management.Automation.ErrorCategory]::ReadError) `
+            -InnerException $_.Exception
+    }
+
+    $logs = @()
+    if ($parsed -and ($parsed.PSObject.Properties.Name -contains 'value') -and $null -ne $parsed.value) {
+        $logs = @($parsed.value)
+    }
+    return [pscustomobject]@{
+        count = $logs.Count
+        logs  = $logs
+    }
+}
+
+function Get-AdoCoreBuildLog {
+    <#
+    .SYNOPSIS
+      GET one build log as a plain string. Does not parse the text into objects.
+    .DESCRIPTION
+      Without -StartLine/-EndLine the whole log is returned (can be several MB).
+      -StartLine/-EndLine are passed to the API as-is: lines are 1-based and inclusive;
+      either may be given alone; a range past the end returns ''. Choosing which lines
+      to read (tail, error window) is the caller's decision.
+      -ErrorPolicy Fail (default): HTTP 404 throws ErrorId AdoCoreResourceNotFound,
+      message "ADO build {BuildId} log {LogId} was not found."
+      -ErrorPolicy Omit: HTTP 404 returns $null.
+      A log id the server answers with HTTP 200 and an empty body returns '' — that is
+      a readable empty log, not the not-found error.
+      Any other failure throws ErrorId AdoCoreReadFailed, message
+      "Could not read ADO build {BuildId} log {LogId}: ...".
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$BuildId,
+
+        [Parameter(Mandatory = $true)]
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$LogId,
+
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$StartLine,
+
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$EndLine,
+
+        [string]$WorkspaceRoot = '',
+        [string]$BuildApiBase = '',
+        [ValidateSet('Fail', 'Omit')]
+        [string]$ErrorPolicy = 'Fail',
+        [string]$Collection = '',
+        [string]$Project = '',
+        [string]$Repository = '',
+        [string]$ServerUrl = ''
+    )
+
+    $base = Resolve-AdoCoreBuildApiBaseValue -WorkspaceRoot $WorkspaceRoot -BuildApiBase $BuildApiBase `
+        -Collection $Collection -Project $Project -Repository $Repository -ServerUrl $ServerUrl
+    Assert-AdoCoreTrustedApiBase -ApiBase $base -Name 'BuildApiBase'
+
+    $hasStart = $PSBoundParameters.ContainsKey('StartLine')
+    $hasEnd = $PSBoundParameters.ContainsKey('EndLine')
+    if ($hasStart -and $hasEnd -and $EndLine -lt $StartLine) {
+        throw "EndLine ($EndLine) must be greater than or equal to StartLine ($StartLine)."
+    }
+
+    $query = @()
+    if ($hasStart) { $query += "startLine=$StartLine" }
+    if ($hasEnd) { $query += "endLine=$EndLine" }
+    $query += 'api-version=7.0'
+
+    $uri = "$base/builds/$BuildId/logs/$LogId`?$($query -join '&')"
+    $response = Invoke-AdoCoreAuthenticatedGet -Uri $uri -ErrorPolicy $ErrorPolicy `
+        -NotFoundMessage "ADO build $BuildId log $LogId was not found." `
+        -ReadContext "ADO build $BuildId log $LogId"
+    if ($null -eq $response) { return $null }
+    if ($null -eq $response.Content) { return '' }
+    return [string]$response.Content
 }
 
 function Get-AdoCoreAuthenticatedUser {
