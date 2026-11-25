@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 Set-StrictMode -Version Latest
 
-$script:AdoCoreLibraryVersion = [version]'0.10.0'
+$script:AdoCoreLibraryVersion = [version]'0.11.0'
 
 # System / derived fields never copied by Clone-AdoCoreWorkItem.
 $script:AdoCoreCloneAlwaysSkipFieldRefNames = [System.Collections.Generic.HashSet[string]]::new(
@@ -1305,6 +1305,113 @@ function Get-AdoCoreOpenPullRequestsForBranch {
     } while ($continuationToken)
 
     return ,([object[]]$pullRequests.ToArray())
+}
+
+function Get-AdoCorePullRequests {
+    <#
+    .SYNOPSIS
+      GET a repository's pull requests. Returns { count; pullRequests } — API objects, unclassified.
+    .DESCRIPTION
+      General list. -Status is active (default), completed, abandoned, or all.
+      -SourceBranch and -TargetBranch are optional; a short name is sent as refs/heads/<name>,
+      and a refs/heads/... value is sent unchanged. Does not decide ready, blocking, or stale,
+      and does not load threads, reviewers, or work item links.
+      Pages follow x-ms-continuationtoken until it is absent ($top=100). If a further page
+      remains after -MaxPages (default 30), throws ErrorId AdoCoreResultTruncated and includes
+      the count read so far. An empty list is count 0 and an empty array, not $null.
+      -ErrorPolicy Fail (default): HTTP 404 throws ErrorId AdoCoreResourceNotFound,
+      message "ADO pull requests were not found."
+      -ErrorPolicy Omit: HTTP 404 returns $null.
+      Any other failure throws ErrorId AdoCoreReadFailed, message
+      "Could not read ADO pull requests: ...", including when -ErrorPolicy is Omit.
+      Get-AdoCoreOpenPullRequestsForBranch is a separate branch lookup and is unchanged.
+    #>
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ApiBase,
+
+        [ValidateSet('active', 'completed', 'abandoned', 'all')]
+        [string]$Status = 'active',
+
+        [string]$SourceBranch = '',
+        [string]$TargetBranch = '',
+
+        [ValidateRange(1, [int]::MaxValue)]
+        [int]$MaxPages = 30,
+
+        [ValidateSet('Fail', 'Omit')]
+        [string]$ErrorPolicy = 'Fail'
+    )
+
+    Assert-AdoCoreTrustedApiBase -ApiBase $ApiBase
+
+    $statusValue = $Status.ToLowerInvariant()
+    $queryParts = @(
+        "searchCriteria.status=$([uri]::EscapeDataString($statusValue))"
+    )
+    if (-not [string]::IsNullOrWhiteSpace($SourceBranch)) {
+        $sourceRef = if ($SourceBranch -like 'refs/heads/*') { $SourceBranch } else { "refs/heads/$SourceBranch" }
+        $queryParts += "searchCriteria.sourceRefName=$([uri]::EscapeDataString($sourceRef))"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($TargetBranch)) {
+        $targetRef = if ($TargetBranch -like 'refs/heads/*') { $TargetBranch } else { "refs/heads/$TargetBranch" }
+        $queryParts += "searchCriteria.targetRefName=$([uri]::EscapeDataString($targetRef))"
+    }
+    $queryParts += @(
+        "`$top=100",
+        'api-version=7.0'
+    )
+
+    $baseUri = "$($ApiBase.TrimEnd('/'))/pullrequests?$([string]::Join('&', $queryParts))"
+    $pullRequests = New-Object 'System.Collections.Generic.List[object]'
+    $continuationToken = $null
+    $pageCount = 0
+    do {
+        if ($pageCount -ge $MaxPages) {
+            Stop-AdoCoreTerminatingError `
+                -Message "ADO pull request results were truncated after reading $($pullRequests.Count) pull request(s) across $pageCount page(s)." `
+                -ErrorId 'AdoCoreResultTruncated' `
+                -Category ([System.Management.Automation.ErrorCategory]::LimitsExceeded)
+        }
+        $pageCount++
+
+        $uri = $baseUri
+        if ($continuationToken) {
+            $uri = "$uri&continuationToken=$([uri]::EscapeDataString($continuationToken))"
+        }
+
+        $response = Invoke-AdoCoreAuthenticatedGet -Uri $uri -ErrorPolicy $ErrorPolicy `
+            -NotFoundMessage 'ADO pull requests were not found.' `
+            -ReadContext 'ADO pull requests'
+        if ($null -eq $response) { return $null }
+
+        $content = [string]$response.Content
+        if ([int]$response.StatusCode -ne 204 -and -not [string]::IsNullOrWhiteSpace($content)) {
+            try {
+                $parsed = $content | ConvertFrom-Json
+            }
+            catch {
+                Stop-AdoCoreTerminatingError -Message "Could not read ADO pull requests: $($_.Exception.Message)" `
+                    -ErrorId 'AdoCoreReadFailed' `
+                    -Category ([System.Management.Automation.ErrorCategory]::ReadError) `
+                    -InnerException $_.Exception
+            }
+
+            if ($parsed -and ($parsed.PSObject.Properties.Name -contains 'value') -and $null -ne $parsed.value) {
+                foreach ($item in @($parsed.value)) {
+                    [void]$pullRequests.Add($item)
+                }
+            }
+        }
+
+        $continuationToken = Get-AdoCoreContinuationToken -Response $response
+    } while ($continuationToken)
+
+    $items = [object[]]$pullRequests.ToArray()
+    return [pscustomobject]@{
+        count        = $items.Count
+        pullRequests = $items
+    }
 }
 
 function Resolve-AdoCorePullRequestId {

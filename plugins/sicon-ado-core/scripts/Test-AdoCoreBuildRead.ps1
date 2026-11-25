@@ -37,7 +37,7 @@ try {
     }
     $repoRoot = $repoRoot.Trim()
 
-    Assert-True ((Get-AdoCoreLibraryVersion) -eq [version]'0.10.0') 'library version is 0.10.0'
+    Assert-True ((Get-AdoCoreLibraryVersion) -eq [version]'0.11.0') 'library version is 0.11.0'
     Assert-True ($null -ne (Get-Command Get-AdoCoreBuildTimeline -ErrorAction SilentlyContinue)) 'Get-AdoCoreBuildTimeline is defined'
     Assert-True ($null -ne (Get-Command Get-AdoCoreBuildLog -ErrorAction SilentlyContinue)) 'Get-AdoCoreBuildLog is defined'
     Assert-True ($null -ne (Get-Command Get-AdoCoreBuildLogs -ErrorAction SilentlyContinue)) 'Get-AdoCoreBuildLogs is defined'

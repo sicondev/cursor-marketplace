@@ -10,6 +10,7 @@ ADO Core owns generic operations:
 
 - Resolve on-premises ADO endpoints from `remote.origin.url`
 - Query, resolve, and create pull requests
+- List a repository's pull requests (`Get-AdoCorePullRequests` → `{ count; pullRequests }`, API objects unchanged). Callers choose status and branch filters. A further page after `-MaxPages` throws `AdoCoreResultTruncated` with the count read so far.
 - Post general PR discussion threads (`New-AdoCorePullRequestThread`)
 - List PR discussion threads, reply without changing status, and set thread status
 - Add or update a PR reviewer (`Set-AdoCorePullRequestReviewer -ReviewType Required|Optional`, default Required)
