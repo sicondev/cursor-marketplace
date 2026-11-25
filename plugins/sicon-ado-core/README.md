@@ -23,6 +23,8 @@ ADO Core owns generic operations:
 - Link work items to each other (`Add-AdoCoreWorkItemRelation`) or to pull requests (`-LinkCommits` optional)
 - Attach files to work items
 - Resolve build definitions and list builds
+- Read a build timeline (`Get-AdoCoreBuildTimeline`) and one build log (`Get-AdoCoreBuildLog`); callers classify results
+- List build logs with line counts (`Get-AdoCoreBuildLogs`) and read a line range (`Get-AdoCoreBuildLog -StartLine -EndLine`); callers choose which lines
 - Escape and execute Wiql queries
 
 It does not own Flyby lifecycle behavior, Nineyards message gating, branch selection, card wording, Approvals board policy, or agent commands.
