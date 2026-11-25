@@ -6,7 +6,7 @@
               },
     "metadata":  {
                      "description":  "Sicon Marketplace Cursor Plugins",
-                     "version":  "0.1.50"
+                     "version":  "0.1.51"
                  },
     "plugins":  [
                     {
@@ -50,11 +50,6 @@
                         "description":  "Infer DevOps Kit — Picks DevOps card implement lane (Inline / Devops Leading Brief / Superpowers); asks whether to proceed before running that next step."
                     },
                     {
-                        "name":  "sicon-devops-leading-brief",
-                        "source":  "./plugins/sicon-devops-leading-brief",
-                        "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief file; implement inline by default (Superpowers only when pinned); typesetter required; tip-close silent format+lint + hard static floor then Prove; ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance"
-                    },
-                    {
                         "name":  "sicon-pr-clearance",
                         "source":  "./plugins/sicon-pr-clearance",
                         "description":  "Drive an Azure DevOps pull request to review-quiet via Policy, Human, and configured review tools"
@@ -78,6 +73,11 @@
                         "name":  "sicon-ado-core",
                         "source":  "./plugins/sicon-ado-core",
                         "description":  "Shared Azure DevOps Git, pull-request, work-item, and build library for other Sicon plugins (no slash command)"
+                    },
+                    {
+                        "name":  "sicon-devops-leading-brief",
+                        "source":  "./plugins/sicon-devops-leading-brief",
+                        "description":  "Devops Leading Brief — ADO card context via /DLB; fat chat + thin brief with In tip / Out of tip / Blast radius / Prove notes; implement inline by default (Superpowers only when pinned); typesetter required; tip-close silent format+lint + hard static floor then Prove; ship offer with nineyards-shaped message gate; fullmonty = implement + autoland ship + pr-clearance when tooling present (else warn + skip)"
                     }
                 ]
 }
