@@ -3,17 +3,18 @@ name: devops-leading-brief
 description: >-
   Devops Leading Brief (DLB) — ADO card context; brief (findings + Enrich) written
   to a file; implement defaults to inline (Superpowers only when the user pins it)
-  under Reuse→Minimal→YAGNI / splash / tip-close / prove / security policy. Use for
-  /DLB or, after a brief in-thread, bare implement / Orient / evidence drops /
-  fullmonty. Implement always seeds from the thin brief written this invoke —
-  never reuse a prior-run brief file. Typesetter required at implement entry;
-  tip-close = silent format+lint + hard static floor then Prove. fullmonty =
-  implement + autoland ship (no message gate) + pr-clearance. Prove: new tests
-  only when Fix-in is 270.
+  under Reuse→Minimal→YAGNI / splash / tip-close / prove / security policy. Thin
+  Brief labels In tip / Out of tip / Blast radius / Prove notes (weak-AC fences
+  when needed). Use for /DLB or, after a brief in-thread, bare implement / Orient /
+  evidence drops / fullmonty. Implement always seeds from the thin brief written
+  this invoke — never reuse a prior-run brief file. Typesetter required at
+  implement entry; tip-close = silent format+lint + hard static floor then Prove.
+  fullmonty = implement + autoland ship (no message gate) + pr-clearance. Prove:
+  new tests only when Fix-in is 270.
 disable-model-invocation: true
 ---
 
-<!-- contrib-managed: devops-leading-brief@0.5.0 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
+<!-- contrib-managed: devops-leading-brief@0.6.0 — source: ai-devtools/contrib/devops-leading-brief/ — prefer PR there; local edits may be overwritten on sync -->
 
 
 # Devops Leading Brief (DLB)
@@ -243,6 +244,7 @@ On **every** new `/DLB <id>` / `/DLB <id> implement` / `/DLB <id> fullmonty` (co
    - `docs/specs/briefs/{id}.md`
    - `.cursor/dlb-briefs/{id}.md`
    - `.tmp/dlb-briefs/{id}.md`
+   - **Delete guard (hard):** `{id}` must be digits only. Before each delete, resolve the target and every parent up to the write root to canonical paths; skip (do not delete) if any resolves outside the write root or is a symlink / junction / reparse point.
 2. **Do not Read** any pre-existing brief for this id (or another id) as the seed for this invoke. Prior-run briefs, matrix study copies, and `.superpowers/sdd/task-*-brief.md` are **contamination** — delete or ignore; never treat as card-truth.
 3. After ADO/Halo aggregate + findings, **write a new** trimmed file at the Path below. That write is the only brief this chat may implement from.
 4. Same-thread evidence fold-ins **rewrite** that same path — still this-invoke’s file, not a resurrected older copy.
@@ -251,7 +253,7 @@ On **every** new `/DLB <id>` / `/DLB <id> implement` / `/DLB <id> fullmonty` (co
 |---|---|
 | **Path** | Primary Fix-in / write root: `docs/specs/briefs/{id}.md`. If that tree does not exist, create `docs/specs/briefs/` when the repo already has `docs/` or `docs/specs/`; else `.cursor/dlb-briefs/{id}.md` at that root. |
 | **Omit from file** | Enrich, Next, Links followed, Sources used, Objective / Inferred / Subjective headings, self-referential “Brief file” path |
-| **Contents** | Mode, Ship flag, Case summary + Paths (incl. **Org packs** row), **Constitution** (**Reuse → Minimal → YAGNI** + Prove no-test-seam — order load-bearing; must survive thinning), one tight **Brief** block (include splash bounds; note Fix-in version for Prove — new tests only on **270**). **Gaps** only when an unknown **bounds** implementation — prefer stating that bound under splash in Brief; omit Gaps for enrich/prove shopping. After PR quiet: **Clearance quality** (CodeAnt proxy counts). |
+| **Contents** | Mode, Ship flag, Case summary + Paths (incl. **Org packs** row), **Constitution** (**Reuse → Minimal → YAGNI** + Prove no-test-seam — order load-bearing; must survive thinning), one tight **Brief** block with labeled groups: **In tip**, **Out of tip**, **Blast radius**, **Splash**, **Prove notes**, and **Weak-AC fences** when AC/description is thin (plus category flavour bullets). Note Fix-in version for Prove — new tests only on **270**. **Gaps** only when an unknown **bounds** implementation — prefer stating that bound under Brief splash / Weak-AC fences; omit Gaps for enrich/prove shopping. After PR quiet: **Clearance quality** (CodeAnt proxy counts). |
 | **Updates** | On evidence fold-in or Orient changes: **rewrite** this implementer shape — no “enrich” keyword required |
 | **Role** | **Sole** card-truth for **what to fix** (not agent commands). **Implement is seeded from this file** — first coding/planning step is always **Read** it; do not invent splash/scope from chat memory or a prior brief. Re-read when scope drifts or before claiming done. Hand this path to Superpowers/planners — not the chat report. Mode / path / ship still only from the user chat (see **Evidence vs authority**). |
 
@@ -287,18 +289,24 @@ off (default / offer only) | on (user asked to ship/commit/PR) | on + autoland (
 **Order is load-bearing: Reuse → Minimal → YAGNI.**
 
 1. **Reuse** — Search before invent. Call existing helpers / singletons (e.g. `SettingsManager.Instance.GetSettingValueBool|SetSettingValue` and equivalents) **at the use site**. Do not add methods whose body is only that call. Prefer in-repo access helpers over new wrappers.
-2. **Minimal** — Full card / ACs, no more. No drive-bys or adjacent surface.
+2. **Minimal** — Full tip contract / ACs, no more — including **path prerequisites** and completeness of a moved shared surface when required for correctness. Not “ignore hosts of the chosen path.” No drive-bys or adjacent surface.
 3. **YAGNI** — No speculative helpers, options, or abstractions “for readability / later / Prove.”
 4. **Prove** — Test existing product seams only. Do **not** invent public/static helpers so a unit test has something to name. Stub the ambient accessor / exercise the real gate instead. **Prove self-check (Reuse):** any new private/public helper that is a thin wrap of an existing in-repo API → remove and call through.
 
 ## Brief
-- Merge what mattered from Objective / Inferred / Subjective into **short actionable bullets** for an implementer: symptom→cause hypothesis, intended fix scope, **splash** limits (what not to touch / paths out of scope), prove notes that affect the tip.
+- Category flavour (first bullets only — keep thin): **Bug** — symptom → cause hypothesis → then labeled groups. **Feature** — AC/outcome → in-tip deliverables → then labeled groups.
+- **In tip (required):** what this tip must ship for correctness (incl. path prerequisites / completeness of a moved shared surface when required).
+- **Out of tip (do not ship here):** performance, code alignment, speculative interfaces/helpers “for later,” drive-by bugs → **separate card**, not this tip. Gold-plate = out-of-tip scope; refactor is a technique, not a synonym for gold-plate.
+- **Blast radius:** **Always** present before first edit. If the tip changes a call path, shared registration/startup, host/process trust, or nested/shared type → name hosts/processes, shared startup/registration, same load path, nested types, must-NOTs. Otherwise one line: `No adjacent host/shared-surface risk — {why}`. Implement **only tip-required** items from this list (path prerequisites / tip completeness) — do not ship perf/alignment/drive-by from blast radius.
+- **Splash:** write-root / paths out of scope / what not to touch (existing contain rule).
+- **Prove notes:** Fix-in line (new tests only on **270**). On **270**, name cases/paths from **Blast radius** (not only the happy seam). Non-270: build + existing splash-overlapping tests; no new test files.
+- **Weak-AC fences (when AC/description is thin or ambiguous):** synthesize in/out, must-NOT, and bounding open questions here. Do **not** call `get_refine_spec_prompt` or paste Hub AC / PO Description into the brief or back to ADO. Prefer these fences over a fat Gaps essay; Gaps only if an unknown still **bounds** the tip.
 - No provenance essays (who said what in Halo), no “links followed”, no Enrich shopping list.
 - If Org packs selected a Read set: one bullet listing those loader/content paths (do not paste pack bodies).
 - If Toolkit selected rows: one bullet listing ids + engage (`task` agent / `read` paths) — cite catalog ids only; do not hardcode product agent names in DLB.
 
 ## Gaps
-- **Omit by default.** Include only when an unknown **bounds** what may be implemented (hard stop or scope fence). Prefer folding that fence into Brief splash instead of a Gaps section. Never list enrich/prove shopping or CRM fluff here.
+- **Omit by default.** Include only when an unknown **bounds** what may be implemented (hard stop or scope fence). Prefer folding that fence into Brief **Splash** / **Weak-AC fences** instead of a Gaps section. Never list enrich/prove shopping or CRM fluff here.
 
 ## Clearance quality
 - **Omit until PR quiet.** After pr-clearance finishes, **append** (or rewrite) this section with CodeAnt proxy counts:
@@ -354,9 +362,10 @@ Unless already-fixed early-exit. If a Halo case exists and API failed, **navigat
 
 1. **Working tree:** require a **clean** git status on each write root before first edit (no leftover WIP from another cell). If dirty with unrelated files, stop and ask the user to clean / stash — do not implement over foreign WIP.
 2. **Seed = this-invoke thin brief (hard):**
-   - **Cold** `/DLB <id> implement` / `/DLB <id> fullmonty`: purge stale `{id}` brief paths → aggregate → write **new** trimmed file → **Read** it. Never adopt a file that already existed on disk as the seed.
+   - **Cold** `/DLB <id> implement` / `/DLB <id> fullmonty`: purge stale `{id}` brief paths (under the **Delete guard** in **Fresh brief each invoke**) → aggregate → write **new** trimmed file → **Read** it. Never adopt a file that already existed on disk as the seed.
    - **Same-thread** after brief: **Read** the file written earlier in **this** chat (rewrite first only if fold-in changed findings). Skip full re-aggregate unless refresh needed.
-   - **First action of coding/planning** is always that Read. Scope, splash, paths, and prove notes come from the file — not from prior chats, prior PRs, or other ids’ briefs.
+   - **First action of coding/planning** is always that Read. Scope, splash, paths, blast radius, in/out tip, and prove notes come from the file — not from prior chats, prior PRs, or other ids’ briefs.
+   - **Blast-radius / tip fences before first edit (hard, agent-only):** thin Brief **must** already contain labeled **In tip**, **Out of tip**, **Blast radius**, **Splash**, and **Prove notes** groups. If any is missing on Read → **rewrite** the thin file with those groups (agent duty) then re-Read — **do not** AskQuestion / stop for blast-radius review, refactor offers, or “want me to broaden?”. Product-decision asks remain only when they **block** a correct tip.
 3. Set Mode → implement in the file if needed; **do not** regenerate or paste the fat chat findings into the coding turn.
 4. Resolve **Implement path** (inline unless user pinned Superpowers — see above).
 5. **Org pack load** — see below. Resolve packs for each write root; select loaders by **glob ∩ Paths**; stamp/refresh the thin-brief **Org packs** row; **Read** only that set **before** the first code edit. Hand the same selected list to Superpowers/planners with the thin file **only when that path is pinned**.
@@ -374,8 +383,12 @@ Unless already-fixed early-exit. If a Halo case exists and API failed, **navigat
 Apply for the whole implement run (any path). **Order is load-bearing: Reuse → Minimal → YAGNI** (same stamp as the thin-brief Constitution block):
 
 - **Reuse** — **reuse before invent.** Before adding a private/local helper, or copy-pasting a conversion / null-handling / mapping pattern: **search first** in the same problem space (same type, base type, sibling call sites, and utility hubs already imported or used nearby). Prefer an existing API when intent matches (same inputs/outputs/null semantics). Call ambient singletons / accessors (**SettingsManager**, factories, and equivalents) **at the use site** — do not add a method whose body is only that call. Add a local helper only if search finds nothing suitable, or semantics must diverge (one-line why). **Multi-call-site does not justify a local duplicate** of a shared helper.
-- **Minimal** — **full card, no more.** Satisfy the thin brief / ACs **in full**; do **not** omit hard ACs or defer in-scope paths to “keep it small.” **No** opportunistic fixes, drive-by refactors, or adjacent bugs. Under-delivery is a policy breach, same as gold-plating.
+- **Minimal** — **full tip contract, no more.** Satisfy the thin brief / ACs **in full** (including path prerequisites and hosts of the chosen path when required for correctness); do **not** omit hard ACs or defer in-scope paths to “keep it small.” **No** opportunistic fixes, drive-by refactors, or adjacent bugs. Under-delivery is a policy breach, same as gold-plating. “Minimal” means not beyond the tip contract — **not** “ignore hosts/prerequisites of the chosen path.”
 - **YAGNI** — do not invent unused surface while fixing (extra APIs, flags, abstractions, “we’ll need this later,” or “for readability / Prove”). Prefer the smallest design that still meets the brief/ACs — not a future-proof redesign.
+- **Three lanes (vocabulary — not a fourth mode):**
+  - **Defect tip** — Required for the tip only (YAGNI): no invent-for-later, no drive-by, no perf, no alignment. Path prerequisites and completeness of a **moved** shared surface stay **in tip** when required for correctness. Implement only tip-required items from **Blast radius**.
+  - **Refactor / perf / maintainability** — Separate card: interfaces, central helpers, perf passes, alignment. Do **not** AskQuestion or offer broaden for these during the tip.
+  - **Feature** — Full tip/AC + YAGNI (no speculative extras) + **org packs / agent-implementation-toolkit** as the how-to-code gate. Not a stealth refactor programme.
 - **Splash** — prefer contain; name write roots; do not expand into extra repos/modules without an explicit user Join. Adding a **focused unit test** for an **existing** unit-testable type next to the repo’s existing test project/layout is **in splash** when Prove requires it **and** Fix-in is **270** (not a Join). Inventing a class, struct, interface, or file **only** to host a test is **out of splash** and forbidden (see Prove). On non-270 Fix-in, new test files are **out of splash**.
 - **Org packs** — see **Org pack load** below. Soft conventions (T3) only bind when selected via **loader glob ∩ brief Paths** and Read; do not treat pack install as ambient context.
 - **Repo toolkit** — see **Repo toolkit load** below. Skills (`engage: read`) bind from the write-root catalog alone; Task spawn also requires the operator profile allowlist. DLB stays product-blind — never hardcode product agent names in this skill.
@@ -390,10 +403,10 @@ Apply for the whole implement run (any path). **Order is load-bearing: Reuse →
 | Lens | Guards against | Does **not** mean |
 |------|----------------|-------------------|
 | **Reuse** | Local copies / one-line wraps of APIs that already exist in-repo (incl. SettingsManager-style accessors) | Blocking a true new helper when search finds none |
-| **Minimal** | Drive-bys, adjacent bugs, gold-plate outside the tip | Shipping a **subset** of ACs / thin-brief scope |
+| **Minimal** | Drive-bys, adjacent bugs, gold-plate outside the tip | Shipping a **subset** of ACs / thin-brief scope; skipping path prerequisites / hosts of the chosen path |
 | **YAGNI** | Speculative helpers, options, abstractions “for later / Prove” | Skipping required product behaviour to save lines |
 
-Together: call through existing helpers first, deliver **exactly** the card tip — complete, nothing beyond it.
+Together: call through existing helpers first, deliver **exactly** the card tip — complete (incl. tip-required blast-radius items), nothing beyond it (out-of-tip → separate card).
 
 **Prove self-check (Reuse):** any new private/public helper whose body is a thin wrap of an existing in-repo API (e.g. `return SettingsManager.Instance.GetSettingValueBool(...)`) → remove and call through at the use site. Do not invent that wrapper so a unit test can name it.
 
@@ -590,7 +603,7 @@ Typical durable shape: tip on **270** (tests stay on 270) → cherry product-onl
    - Else if any in-scope splash path is `*.ts` / `*.tsx` / `*.js` / `*.jsx` and `vitest` is in `package.json` → use Hub / JS-TS (`test:ci:unit` / `vitest run` with a file or name filter; avoid interactive `--ui`).
    - Else first present match: Hub / JS-TS (`vitest`) → .NET test projects → `verify:agent` / `Verify-Agent.ps1` / thin-brief or plan-stated test commands.
    - No stack found → note in chat; cannot invent a new test framework. Still fail closed if a named verify script exists and fails.
-2. **Add a test only when Fix-in is 270 and** behaviour already lives on a unit-testable seam — an **existing** pure helper, formatter, mapper, validator, or similar type (including a small pure change to one). Match existing test style/layout. On Fix-in **270**, absence of a prior test for that existing type is **not** a skip — create one in the detected project **without** `.csproj`/`.sln` surgery when the project already picks up new files by convention; otherwise prefer build + existing tests or ask Join for project files.
+2. **Add a test only when Fix-in is 270 and** behaviour already lives on a unit-testable seam — an **existing** pure helper, formatter, mapper, validator, or similar type (including a small pure change to one). Match existing test style/layout. On Fix-in **270**, prefer cases/paths named in thin-brief **Blast radius** / **Prove notes** (not only the happy seam) when those seams are unit-testable; absence of a prior test for that existing type is **not** a skip — create one in the detected project **without** `.csproj`/`.sln` surgery when the project already picks up new files by convention; otherwise prefer build + existing tests or ask Join for project files.
    - **Forbidden (any Fix-in):** a new class, struct, interface, or file created **only** to host a test (e.g. extracting page/grid logic into a `*Policy` / `*Rules` type solely so Prove can unit-test it). That is **out of splash**.
    - **Forbidden (any Fix-in):** a new public/static/private method that only forwards to an existing in-repo accessor (SettingsManager, factory, etc.) so Prove has a named seam. Stub / exercise the real gate instead.
    - **Forbidden when Fix-in ≠ 270:** any new test file, and any Prove-driven edit to `*.csproj` / `*.sln`.
@@ -610,7 +623,7 @@ Surfaces optional/out-of-scope hardening from the security scan as an **offer**,
 | **Straight implement** | `/DLB <id> implement` (cold — no brief in this thread first) | **Skip** the optional-hardening offer entirely. Still run security review for medium+. |
 | **fullmonty** | `/DLB <id> fullmonty` or bare `fullmonty` after brief | **Disregard** optional hardening entirely — no `broaden` / `skip broaden` offer, no auto-apply, no Join for scan niceties. Still run security review; **all** medium+ security findings fail closed (not tip-scope-only). |
 
-Do **not** fold optional hardening into the thin brief unless the user accepts broaden. Do **not** prompt on straight implement even if the scan mentions hardening. On **fullmonty**, treat broaden notes as noise.
+Do **not** fold optional hardening into the thin brief unless the user accepts broaden. Do **not** prompt on straight implement even if the scan mentions hardening. On **fullmonty**, treat broaden notes as noise. Items already listed under thin-brief **Out of tip** (perf / alignment / speculative helpers / drive-by) do **not** create a new broaden ritual — leave them out of this tip; do not AskQuestion “skip broaden” for them.
 
 ## Orient — Q&A
 
@@ -700,13 +713,13 @@ Straight `/DLB <id> implement` skips step 1. **fullmonty** skips this whole sect
 - ADO primary; Halo supports the card (never the reverse).
 - **ADO reads:** **Dual Resolve** `sicon-ado-core` → `scripts/ado-core.ps1` → verify version ≥ 0.5.0 + WI helpers → `Get-AdoCoreWorkItem -Expand all` + comments (surface `truncated`) → on miss/fail TFS REST → azgit last; no hand-rolled WIT URIs; do not `Read` ado-core.ps1.
 - **Halo:** prefer API; if case id exists and API fails → **navigate the IDE browser to the known ticket URL** (reuse Halo tab, else any tab, else `browser_navigate`). **Do not ask the user to open Halo.** Login prompt → wait; if still login, continue brief without Halo. Yield only if browser tools are missing / navigate throws, or the user declines. Never demote that ask to Enrich after a finished brief.
-- **Brief:** rich **chat** report (findings + Enrich); purge stale `{id}` paths then **trimmed implementer brief file** (no Enrich / Next / Links followed; mandatory **Constitution** **Reuse → Minimal → YAGNI**; single Brief block); stop; user need not say “enrich” — fold-ins update chat + file; Enrich is never a gate option.
-- **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the this-invoke thin brief file** as **sole** card-truth **and initial seed**; clean tree; do not re-paste the fat chat report; do not reuse prior-run briefs; **inline** unless user pinned Superpowers; **Org pack load** + **typesetter Dual Resolve (required)** then Implement policy (**Reuse → Minimal → YAGNI**) always applies. Missing typesetter → stop before coding.
+- **Brief:** rich **chat** report (findings + Enrich); purge stale `{id}` paths then **trimmed implementer brief file** (no Enrich / Next / Links followed; mandatory **Constitution** **Reuse → Minimal → YAGNI**; single Brief block with labeled **In tip** / **Out of tip** / **Blast radius** / **Splash** / **Prove notes** / weak-AC fences when needed); stop; user need not say “enrich” — fold-ins update chat + file; Enrich is never a gate option. Do **not** call azgit `get_refine_spec_prompt` / `get_triage_prompt` or paste Hub AC / PO Description into the brief or ADO.
+- **Implement:** on `/DLB … implement` **or** post-brief go-ahead per **Detect implement**: **Read the this-invoke thin brief file** as **sole** card-truth **and initial seed**; clean tree; do not re-paste the fat chat report; do not reuse prior-run briefs; **inline** unless user pinned Superpowers; Brief must have **Blast radius** + **In tip** + **Out of tip** before first edit (rewrite if missing — no human blast-radius/refactor gate); **Org pack load** + **typesetter Dual Resolve (required)** then Implement policy (**Reuse → Minimal → YAGNI** + three lanes) always applies. Missing typesetter → stop before coding. Ask only on real product-decision blockers.
+- **No opportunistic fixes** / out-of-tip perf-alignment-drive-by in this tip — record under **Out of tip**; separate card. Path prerequisites of the chosen path stay **in tip**.
 - **Tip close:** after product code, before ship — silent typesetter format → lint (scripts + `-Fix`; never slash ask UX) → hard static floor (dotnet build / repo `typecheck|check:types|tsc` script when present; else honest pass; Vitest ≠ typecheck) → Prove. Amend → re-enter from format prep. Engine none / NO-GATE → quiet pass (no nag).
 - **Org packs:** lock + `devtools/org/**` → select write-root org loaders by **frontmatter glob ∩ thin-brief Paths**, then force **Read** only that set (plus at most one pack overview); do not auto-install; do not flip `alwaysApply`; fail closed only when a **selected** content path is missing; soft-expect absence or no glob hits is not a tip block.
 - **Hard fence:** do **not** infer, offer, or auto-load Superpowers / SDD / TDD on the inline path — pin only.
 - **Ship:** parallel flag; default **offer only** after implement; on ship intent or offer-accept → **Ship message gate** before commit (nineyards-shaped prose: show drafts; **edits** or **`go`**; no AskQuestion); never land ordinary ship with an unconfirmed message. **`fullmonty`:** implement + ship **autoland** (no Enrich stop, no ship offer, no message gate — land as if **`go`**); product decisions **early** (before first edit when visible); **disregard** security broaden offers; when clearance tooling resolves → **drive `/pr-clearance` to quiet** (or hard-stop finalize) before claiming ship-complete; else **safe fallback** (warn + skip — see **Clearance (fullmonty)**; plugins cannot declare clearance as a required dep). **Reuse an open PR for the branch** via `Resolve-AdoCorePullRequestId -ApiBase -SourceBranch` (Ship ado snippet; or `Get-AdoCoreOpenPullRequestsForBranch` with explicit 0 / 1 / >1 — never silently pick the first when >1) — do not create a duplicate; **ADO PR must link the DLB work-item id** (prefer `-WorkItemIds` on create; else `Link-AdoCoreWorkItemToPullRequest -Endpoints -WitApiBase`) (fail closed); also link related WIs from the card when present (soft-fail); ordinary ship prefers `/pr-clearance` when available.
 - Branch prefix follows work-item type (`bug/` / `feature/` / `chore/…`).
-- No opportunistic fixes anywhere in the chain.
 - Ignore `.eml`/`.msg` unless asked.
 - Found in / Fix in; Explorer-ready paths.
